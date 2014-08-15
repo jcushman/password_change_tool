@@ -8,7 +8,7 @@ from selenium.common.exceptions import NoSuchElementException, InvalidElementSta
 import wx
 from wx.lib.mixins.listctrl import CheckListCtrlMixin
 from wx.lib.pubsub import pub
-from browser import run_step, get_browser, UnexpectedElementError, WINDOW_SIZE as BROWSER_WINDOW_SIZE
+from browser import run_step as browser_run_step, get_browser, UnexpectedElementError, WINDOW_SIZE as BROWSER_WINDOW_SIZE
 
 from helpers import SizerPanel, show_error, load_log_file
 from models import GlobalState, Rule
@@ -67,6 +67,9 @@ class ChoosePasswordsPanel(SizerPanel):
         """ % GlobalState.log_file_path)
 
         self.selected_indexes = selected_indexes = set()
+        logins = GlobalState.logins
+        def checkable(login):
+            return not login.get('error', None)
 
         continue_button = wx.Button(self, label="Change Selected Passwords")
         continue_button.Disable()
@@ -82,6 +85,8 @@ class ChoosePasswordsPanel(SizerPanel):
                 self.ToggleItem(evt.m_itemIndex)
 
             def OnCheckItem(self, index, flag):
+                if not checkable(logins[index]):
+                    return
                 if flag:
                     selected_indexes.add(index)
                 else:
@@ -91,50 +96,51 @@ class ChoosePasswordsPanel(SizerPanel):
                 else:
                     continue_button.Disable()
 
-        list = CheckListCtrl(self)
-        self.sizer.Add(list, 1, wx.EXPAND)
+        self.checklist = checklist = CheckListCtrl(self)
+        self.sizer.Add(checklist, 1, wx.EXPAND)
 
         for i, title in enumerate(("Login", "Domain", "User", "Reason unavailable")):
-            list.InsertColumn(i, title)
+            checklist.InsertColumn(i, title)
 
         # process logins for list
-        logins = GlobalState.logins
         Rule.attach_rules(logins)
 
         def login_sort_key(login):
-            prefix = "A" if not login.get('error', None) else "B" if login.get('rule', None) else "C"
+            prefix = "A" if checkable(login) else "B" if login.get('rule', None) else "C"
             return prefix + login['label'].lower()
 
         logins.sort(key=login_sort_key)
 
         # add logins to list
         for login_index, login in enumerate(logins):
-            if not login.get('error',None):
+            if checkable(login):
                 # insert line with checkbox
-                index = list.InsertStringItem(sys.maxint, login['label'])
+                index = checklist.InsertStringItem(sys.maxint, login['label'])
             else:
                 # insert line with no checkbox
                 item = wx.ListItem()
                 item.SetId(sys.maxint)
                 item.SetText(login['label'])
-                index = list.InsertItem(item)
+                index = checklist.InsertItem(item)
             for i, value in enumerate((login.get('domain', ''), login.get('username', ''), login.get('error', ''))):
-                list.SetStringItem(index, i + 1, value)
-            list.SetItemData(index, login_index)
+                checklist.SetStringItem(index, i + 1, value)
+            checklist.SetItemData(index, login_index)
 
         for i in range(4):
-            list.SetColumnWidth(i, wx.LIST_AUTOSIZE)
+            checklist.SetColumnWidth(i, wx.LIST_AUTOSIZE)
 
-        self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.item_selected, list)
-        self.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.item_deselected, list)
+        self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.item_selected, checklist)
+        self.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.item_deselected, checklist)
 
         self.sizer.Add(continue_button, 0, wx.TOP, border=30)
 
     def item_selected(self, evt):
-        print 'item selected: %s\n' % evt.m_itemIndex
+        pass
+        #self.checklist.CheckItem(evt.m_itemIndex, True)
 
     def item_deselected(self, evt):
-        print 'item deselected: %s\n' % evt.m_itemIndex
+        pass
+        #self.checklist.CheckItem(evt.m_itemIndex, False)
 
     def change_passwords(self, evt):
         logins = GlobalState.logins
@@ -197,31 +203,22 @@ class ChangePasswordsPanel(SizerPanel):
             screenshot_thread = threading.Thread(target=self.update_screenshot, args=[driver, stop_screenshots])
             screenshot_thread.start()
 
+            replacements = (('username', login['username']),
+                            ('old_password', login['password']),
+                            ('new_password', new_password))
+
             try:
-                for i, step in enumerate(rule.steps):
-                    print "Running", step
-                    while len(step)<3:
-                        step += [None]
-                    step_type, opts = step[0], step[1:]
-
-                    # handle templating
-                    if step_type == 'type' and opts[1]:
-                        for from_str, to_str in (('username', login['username']),
-                                           ('old_password', login['password']),
-                                           ('new_password', new_password)):
-                            opts[1] = opts[1].replace("{{ %s }}" % from_str, to_str)
-
-                    # run step
-                    run_step(driver, step_type, opts)
+                self.run_steps(driver, rule.steps, replacements)
             except (UnexpectedElementError, NoSuchElementException, InvalidElementStateException, AssertionError) as e:
-                #import ipdb; ipdb.set_trace()
+                if not hasattr(sys, "frozen"):
+                    import ipdb; ipdb.set_trace()
                 if type(e) == NoSuchElementException:
                     message = json.loads(e.msg)['errorMessage']
                 else:
                     message = str(e)
                 log("Probably failed:\n    %s" % message)
-                show_error("Update process failed for %s on step %s: %s" % (
-                    login['domain'], i+1, message))
+                show_error("Update process failed for %s: %s" % (
+                    login['domain'], message))
                 continue
             finally:
                 stop_screenshots.set()
@@ -233,6 +230,42 @@ class ChangePasswordsPanel(SizerPanel):
 
         log("Updates complete.\n\n")
         pub.sendMessage('update_complete', changed_entries=changed_entries)
+
+    def run_steps(self, driver, steps, replacements):
+        for step in steps:
+            self.run_step(driver, step, replacements)
+
+    def run_step(self, driver, step, replacements):
+        print "Running", step
+        step_type, opts = step[0], step[1:]
+
+        # handle conditionals
+        if step_type == 'if':
+            #import ipdb; ipdb.set_trace()
+            substeps = []
+            remaining_parts = step
+            while remaining_parts:
+                if remaining_parts[0] == 'if' or remaining_parts[0] == 'elif':
+                    test, rule_block, remaining_parts = remaining_parts[1], remaining_parts[2], remaining_parts[3:]
+                    try:
+                        browser_run_step(driver, 'assertElementPresent', test, timeout=5)
+                        substeps = rule_block
+                        break
+                    except NoSuchElementException:
+                        pass
+                elif remaining_parts[0] == 'else':
+                    substeps = remaining_parts[1]
+                    break
+            self.run_steps(driver, substeps, replacements)
+            return
+
+        # handle templating
+        if step_type == 'type' and opts[1]:
+            for from_str, to_str in replacements:
+                opts[1] = opts[1].replace("{{ %s }}" % from_str, to_str)
+
+        # run step
+        browser_run_step(driver, step_type, opts)
 
 
 class FinishedPanel(SizerPanel):

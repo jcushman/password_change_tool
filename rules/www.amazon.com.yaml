@@ -1,15 +1,23 @@
 name: Amazon
-matches: []
-#  - www.amazon.com
-# not tested yet
+matches:
+  - www.amazon.com
 steps:
   # log in
   - [open, "https://www.amazon.com/gp/css/homepage.html/ref=nav_youraccount_ya"]
   - [click, "link=Change Account Settings"]
-  - [type, id=auth-email, "{{ username }}"]
-  - [type, id=auth-password, "{{ old_password }}"]
-  - [click, "css=.a-button-primary .a-button-input"]
-  - [click, id=cnep_1A_change_password_button-input]
+  -
+    - if
+    - [id=auth-email]
+    -
+      - [type, id=auth-email, "{{ username }}"]
+      - [type, id=auth-password, "{{ old_password }}"]
+      - [click, "css=.a-button-primary .a-button-input"]
+    - else
+    -
+      - [type, id=ap_email, "{{ username }}"]
+      - [type, id=ap_password, "{{ old_password }}"]
+      - [click, id=signInSubmit-input]
+      - [click, id=cnep_1A_change_password_button-input]
 
   #submit form
   - [type, id=ap_password, "{{ old_password }}"]

@@ -26,51 +26,60 @@ def get_browser():
     driver.set_window_size(*WINDOW_SIZE)
     return driver
 
-def run_step(driver, step, opts):
+def run_step(driver, step, opts, timeout=None):
     """ Implement Selenium IDE commands. """
 
-    if step == 'open':
-        end_time = time.time() + TIMEOUT
-        while True:
-            old_url = driver.current_url
-            driver.get(opts[0])
-            if time.time() > end_time or driver.current_url != old_url:
-                break
+    try:
+        if timeout is not None:
+            driver.implicitly_wait(timeout)
 
-    elif step == 'type':
-        element = get_element(driver, opts[0])
-        element.clear()
-        element.send_keys(opts[1])
+        if step == 'open':
+            end_time = time.time() + TIMEOUT
+            while True:
+                old_url = driver.current_url
+                driver.get(opts[0])
+                if time.time() > end_time or driver.current_url != old_url:
+                    break
 
-    elif step == 'click':
-        get_element(driver, opts[0]).click()
+        elif step == 'type':
+            element = get_element(driver, opts[0])
+            element.clear()
+            element.send_keys(opts[1])
 
-    elif step == 'executeScript':
-        driver.execute_script(opts[1], get_element(driver, opts[0]))
+        elif step == 'click':
+            get_element(driver, opts[0]).click()
 
-    elif step == 'assertElementPresent':
-        get_element(driver, opts[0])
+        # let's not actually support this
+        # elif step == 'executeScript':
+        #     driver.execute_script(opts[1], get_element(driver, opts[0]))
 
-    elif step == 'assertText':
-        end_time = time.time() + TIMEOUT
-        while True:
-            try:
-                assert opts[1] in get_element(driver, opts[0]).text
-                break
-            except AssertionError:
-                if time.time() > end_time:
-                    raise
-                time.sleep(.1)
-
-    elif step == 'assertNotFound':
-        if opts[1] is not None:
-            driver.implicitly_wait(opts[1])
-        try:
+        elif step == 'assertElementPresent':
+            # if not found, raises NoSuchElementException
             get_element(driver, opts[0])
-            raise UnexpectedElementError(opts[2] if len(opts)>2 else "Error condition met. This usually means a login was wrong.")
-        except NoSuchElementException:
-            pass
-        finally:
+
+        elif step == 'assertText':
+            end_time = time.time() + TIMEOUT
+            while True:
+                try:
+                    assert opts[1] in get_element(driver, opts[0]).text
+                    break
+                except AssertionError:
+                    if time.time() > end_time:
+                        raise
+                    time.sleep(.1)
+
+        elif step == 'assertNotFound':
+            if opts[1] is not None:
+                driver.implicitly_wait(opts[1])
+            try:
+                get_element(driver, opts[0])
+                raise UnexpectedElementError(opts[2] if len(opts)>2 else "Error condition met. This usually means a login was wrong.")
+            except NoSuchElementException:
+                pass
+            finally:
+                driver.implicitly_wait(TIMEOUT)
+    finally:
+        if timeout is not None:
             driver.implicitly_wait(TIMEOUT)
 
 
