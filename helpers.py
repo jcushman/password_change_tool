@@ -27,6 +27,12 @@ def show_message(message, title='', options=wx.OK):
 def show_error(message, title="Error"):
     show_message(message, title)
 
+def load_log_file(log_file_path):
+    try:
+        return open(log_file_path, 'a')
+    except OSError:
+        show_error("Can't write to selected log file.")
+
 class SizerPanel(wx.Panel):
     def __init__(self, parent):
         super(SizerPanel, self).__init__(parent=parent)
@@ -45,3 +51,4 @@ class SizerPanel(wx.Panel):
         button = wx.Button(self, label=label)
         self.Bind(wx.EVT_BUTTON, handler, button)
         self.sizer.Add(button, 0, flags, border)
+        return button

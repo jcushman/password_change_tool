@@ -6,10 +6,12 @@ import threading
 from time import sleep
 from selenium.common.exceptions import NoSuchElementException, InvalidElementStateException
 import wx
+from wx.lib.mixins.listctrl import CheckListCtrlMixin
 from wx.lib.pubsub import pub
 from browser import run_step, get_browser, UnexpectedElementError, WINDOW_SIZE as BROWSER_WINDOW_SIZE
 
-from helpers import SizerPanel, show_error
+from helpers import SizerPanel, show_error, load_log_file
+from models import GlobalState, Rule
 
 
 class ChoosePasswordManagerPanel(SizerPanel):
@@ -23,6 +25,7 @@ class ChoosePasswordManagerPanel(SizerPanel):
 
     def button_clicked(self, evt):
         pub.sendMessage("password_manager_selected", password_manager="onepassword")
+
 
 
 class CreateLogPanel(SizerPanel):
@@ -46,24 +49,103 @@ class CreateLogPanel(SizerPanel):
         while True:
             if dlg.ShowModal() == wx.ID_OK:
                 log_file_path = dlg.GetPath()
-                try:
-                    log_file = open(log_file_path, 'a')
-                except OSError:
-                    show_error("Can't write to selected log file.")
+                log_file = load_log_file(log_file_path)
+                if not log_file:
                     continue
-                log_file.write("==== Beginning update process ... ====\n\n")
-                pub.sendMessage("log_file_selected", log_file=log_file)
+                GlobalState.log_file_path = log_file_path
+                GlobalState.log_file = log_file
+                pub.sendMessage("log_file_selected")
             break
 
+
+class ChoosePasswordsPanel(SizerPanel):
+    def add_controls(self):
+        self.add_text("""
+            Select the passwords you would like to update.
+
+            A log of all changes will be stored to %s
+        """ % GlobalState.log_file_path)
+
+        self.selected_indexes = selected_indexes = set()
+
+        continue_button = wx.Button(self, label="Change Selected Passwords")
+        continue_button.Disable()
+        self.Bind(wx.EVT_BUTTON, self.change_passwords, continue_button)
+
+        class CheckListCtrl(wx.ListCtrl, CheckListCtrlMixin):
+            def __init__(self, parent):
+                wx.ListCtrl.__init__(self, parent, -1, style=wx.LC_REPORT)
+                CheckListCtrlMixin.__init__(self)
+                self.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnItemActivated)
+
+            def OnItemActivated(self, evt):
+                self.ToggleItem(evt.m_itemIndex)
+
+            def OnCheckItem(self, index, flag):
+                if flag:
+                    selected_indexes.add(index)
+                else:
+                    selected_indexes.remove(index)
+                if selected_indexes:
+                    continue_button.Enable()
+                else:
+                    continue_button.Disable()
+
+        list = CheckListCtrl(self)
+        self.sizer.Add(list, 1, wx.EXPAND)
+
+        for i, title in enumerate(("Login", "Domain", "User", "Reason unavailable")):
+            list.InsertColumn(i, title)
+
+        # process logins for list
+        logins = GlobalState.logins
+        Rule.attach_rules(logins)
+
+        def login_sort_key(login):
+            prefix = "A" if not login.get('error', None) else "B" if login.get('rule', None) else "C"
+            return prefix + login['label'].lower()
+
+        logins.sort(key=login_sort_key)
+
+        # add logins to list
+        for login_index, login in enumerate(logins):
+            if not login.get('error',None):
+                # insert line with checkbox
+                index = list.InsertStringItem(sys.maxint, login['label'])
+            else:
+                # insert line with no checkbox
+                item = wx.ListItem()
+                item.SetId(sys.maxint)
+                item.SetText(login['label'])
+                index = list.InsertItem(item)
+            for i, value in enumerate((login.get('domain', ''), login.get('username', ''), login.get('error', ''))):
+                list.SetStringItem(index, i + 1, value)
+            list.SetItemData(index, login_index)
+
+        for i in range(4):
+            list.SetColumnWidth(i, wx.LIST_AUTOSIZE)
+
+        self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.item_selected, list)
+        self.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.item_deselected, list)
+
+        self.sizer.Add(continue_button, 0, wx.TOP, border=30)
+
+    def item_selected(self, evt):
+        print 'item selected: %s\n' % evt.m_itemIndex
+
+    def item_deselected(self, evt):
+        print 'item deselected: %s\n' % evt.m_itemIndex
+
+    def change_passwords(self, evt):
+        logins = GlobalState.logins
+        GlobalState.selected_logins = [logins[index] for index in self.selected_indexes]
+        pub.sendMessage("passwords_selected")
 
 class ChangePasswordsPanel(SizerPanel):
     screenshot = None
 
-    def __init__(self, parent, logins, log_file):
+    def __init__(self, parent):
         super(ChangePasswordsPanel, self).__init__(parent)
-
-        self.logins = logins
-        self.log_file = log_file
         self.update_thread = threading.Thread(target=self.update_passwords)
         self.update_thread.start()
 
@@ -96,10 +178,12 @@ class ChangePasswordsPanel(SizerPanel):
 
     def update_passwords(self):
         changed_entries = []
-        for rule, login in self.logins:
+        log_file = GlobalState.log_file
+        for login in GlobalState.selected_logins:
+            rule = login['rule']
             new_password = rule.generate_password()
-            self.log_file.write("Updating password for %s on %s to %s ... " % (login['username'], login['domain'], new_password))
-            self.log_file.flush()
+            log_file.write("Updating password for %s on %s to %s ... " % (login['username'], login['domain'], new_password))
+            log_file.flush()
             driver = get_browser()
 
             # set up screenshot thread
@@ -129,8 +213,8 @@ class ChangePasswordsPanel(SizerPanel):
                     message = json.loads(e.msg)['errorMessage']
                 else:
                     message = str(e)
-                self.log_file.write("Probably failed:\n    %s" % message)
-                self.log_file.flush()
+                log_file.write("Probably failed:\n    %s" % message)
+                log_file.flush()
                 show_error("Update process failed for %s on step %s: %s" % (
                     login['domain'], i+1, message))
                 continue
@@ -138,8 +222,8 @@ class ChangePasswordsPanel(SizerPanel):
                 stop_screenshots.set()
 
             # success
-            self.log_file.write("Success.\n")
-            self.log_file.flush()
+            log_file.write("Success.\n")
+            log_file.flush()
             login['new_password'] = new_password
             changed_entries.append(login)
 

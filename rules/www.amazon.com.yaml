@@ -1,5 +1,5 @@
 name: Amazon
-matches:[]
+matches: []
 #  - www.amazon.com
 # not tested yet
 steps:

@@ -24,7 +24,21 @@ class Rule(object):
                     rules.append(Rule(**yaml.load(f)))
         return rules
 
+    @classmethod
+    def attach_rules(cls, logins):
+        """ Given list of logins, set login['rule'] to matching rule for each, or else login['error'] """
+        rules = cls.load_rules()
+        for login in GlobalState.logins:
+            for rule in rules:
+                if rule.applies_to(login):
+                    login['rule'] = rule
+                    break
+            else:
+                login['error'] = "Site not supported."
+
     def applies_to(self, login):
+        if not login.get('domain', None):
+            return False
         for match_domain in self.matches:
             if match_domain.startswith('.'):
                 if login['domain'].endswith(match_domain) or login['domain'] == match_domain[1:]:
@@ -55,3 +69,18 @@ class Rule(object):
                 password[index] = choice(required_range)
 
         return password
+
+
+class GlobalState(object):
+    """
+        Store data we need during the run.
+    """
+    state = {}
+
+    def __getattr__(self, item):
+        if item in self.state:
+            return self.state
+        raise AttributeError
+
+    def __setattr(self, key, value):
+        self.state[key] = value

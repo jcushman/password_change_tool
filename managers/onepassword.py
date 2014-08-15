@@ -8,12 +8,14 @@ import wx
 from wx.lib.pubsub import pub
 
 from helpers import SizerPanel, show_error
+from models import GlobalState
 
 wildcard = "1Password Interchange File (*.1pif)|*.1pif"
 
 class OnePasswordImporter(object):
     def __init__(self, controller):
         self.controller = controller
+        GlobalState.onepassword = {}
         pub.subscribe(self.show_import_instructions, "onepassword__show_import_instructions")
 
     def get_password_data(self):
@@ -54,8 +56,8 @@ class OnePasswordGetFile(SizerPanel):
 
     def process_file(self, path):
         entries = []
-        file_id = None
 
+        original_path = path
         if os.path.isdir(path):
             path = os.path.join(path, "data.1pif")
 
@@ -74,21 +76,31 @@ class OnePasswordGetFile(SizerPanel):
                     print "Unrecognized line:", line
 
         if not entries:
-            show_error("No password entries were found in that file. Are you sure it was a 1Password interchange file?")
+            show_error("No password entries were found in that file. Are you sure it is a 1Password interchange file?")
             return
 
-        processed_entries = []
+        GlobalState.onepassword['original_path'] = original_path
+        GlobalState.default_log_file_path = original_path+".log"
+
+        def set_error(entry):
+            entry['error'] = "Entry must have a location, username, and password."
+
         for entry in entries:
+            entry['label'] = entry['data']['title']
+
             if not 'location' in entry['data'] or not 'secureContents' in entry['data'] or not 'fields' in entry['data']['secureContents']:
+                set_error(entry)
                 continue
 
             entry['location'] = entry['data'].get("location", None)
             entry['id'] = entry['data'].get("uuid", None)
             if not entry['location'] or not entry['id']:
+                set_error(entry)
                 continue
 
             entry['domain'] = urlparse(entry['location']).netloc
             if not entry['domain']:
+                set_error('entry')
                 continue
 
             for field in entry['data']['secureContents']['fields']:
@@ -98,16 +110,11 @@ class OnePasswordGetFile(SizerPanel):
                         break
 
             if not entry.get('username', None) or not entry.get('password', None):
+                set_error('entry')
                 continue
 
-            processed_entries.append(entry)
-
-        if not processed_entries:
-            show_error("No entries in this file are eligible for updates. Exported entries must have a username, password, and website.")
-            return
-
-        pub.sendMessage("got_password_entries", entries=processed_entries)
-
+        GlobalState.logins = entries
+        pub.sendMessage("got_password_entries")
 
 
 class GetOutputLocationPanel(SizerPanel):
@@ -124,10 +131,12 @@ class GetOutputLocationPanel(SizerPanel):
         self.add_button("Choose 1Password Export Destination", self.choose_file)
 
     def choose_file(self, evt):
+        default_dir, default_file = os.path.split(GlobalState.onepassword["original_path"])
+        default_file = default_file.replace(".1pif", "_reimport.1pif")
         dlg = wx.FileDialog(
             self, message="Choose a file",
-            # defaultDir=os.getcwd(),
-            defaultFile="",
+            defaultDir=default_dir,
+            defaultFile=default_file,
             wildcard=wildcard,
             style=wx.SAVE
         )
