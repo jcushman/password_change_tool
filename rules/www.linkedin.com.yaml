@@ -1,0 +1,23 @@
+name: LinkedIn
+matches:
+  - www.linkedin.com
+steps:
+  # log in
+  - [open, "https://www.linkedin.com/uas/login"]
+  - [type, id=session_key-login, "{{ username }}"]
+  - [type, id=session_password-login, "{{ old_password }}"]
+  - [click, id=btn-primary]
+  - [assertElementPresent, css=.nav-profile-photo]
+
+  # open form
+  - [open, "https://www.linkedin.com/settings/"]
+  - [assertElementPresent, "//a[@title='Change your password']"]
+  - [click, "//a[@title='Change your password']"]
+
+  # submit form
+  - [type, id=oldPassword-editPassword, "{{ old_password }}"]
+  - [type, id=new_password-newPassword-editPassword, "{{ new_password }}"]
+  - [type, id=new_password_again-newPassword-editPassword, "{{ new_password }}"]
+  - [click, id=change-password-submit]
+
+  - [assertText, css=.alert.success, "You have successfully changed your password"]

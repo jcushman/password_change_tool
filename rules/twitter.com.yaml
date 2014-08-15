@@ -1,0 +1,17 @@
+name: Twitter
+matches:
+  - twitter.com
+steps:
+  # log in
+  - [open, "https://twitter.com/settings/password"]
+  - [type, "css=.page-canvas .js-username-field", "{{ username }}"]
+  - [type, "css=.page-canvas .js-password-field", "{{ old_password }}"]
+  - [click, "css=.page-canvas button.submit"]
+
+  # submit form
+  - [type, id=current_password, "{{ old_password }}"]
+  - [type, id=user_password, "{{ new_password }}"]
+  - [type, id=user_password_confirmation, "{{ new_password }}"]
+  - [click, id=settings_save]
+
+  - [assertText, css=h1.heading, "Your password has been changed"]

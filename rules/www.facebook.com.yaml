@@ -1,0 +1,23 @@
+name: Facebook
+matches: []
+#  - www.facebook.com
+# This is disabled for now because PhantomJS 1.9.7 doesn't play well with React,
+# so Facebook doesn't enable the Save Changes button after we type.
+# Hopefully this script will work when PhantomJS 2 comes out.
+# In the meantime we could do something clever like
+#  - [executeScript, "//input[@value='Save Changes']", "arguments[0].removeAttribute('disabled')"]
+# but that doesn't work as-is and I'm tired of messing with it.
+steps:
+  # log in
+  - [open, "https://www.facebook.com/settings?tab=account&section=password&view"]
+  - [type, id=email, "{{ username }}"]
+  - [type, id=pass, "{{ old_password }}"]
+  - [click, name=login]
+
+  # submit form
+  - [type, id=password_old, "{{ old_password }}"]
+  - [type, id=password_new, "{{ new_password }}"]
+  - [type, id=password_confirm, "{{ new_password }}"]
+  - [click, "//input[@value='Save Changes']"]
+
+  - [assertText, //body, "Your Password Has Been Changed"]

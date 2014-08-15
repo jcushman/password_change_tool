@@ -1,0 +1,24 @@
+name: Zillow
+matches:
+  - www.zillow.com
+password_rules:
+  max_length: 20
+  min_length: 6
+steps:
+  # log into account
+  - [open, "https://www.zillow.com/myzillow/Account.htm"]
+  - [type, id=email, "{{ username }}"]
+  - [type, id=password, "{{ old_password }}"]
+  - [click, id=loginSubmit]
+  - [assertNotFound, "//h4[@class='zss-error-header']", 1]
+
+  # navigate to edit password page
+  - [click, "link=Edit password"]
+
+  # submit new password
+  - [type, id=oldPasswordField, "{{ old_password }}"]
+  - [type, id=newPasswordField, "{{ new_password }}"]
+  - [type, id=newPasswordConfirmField, "{{ new_password }}"]
+  - [click, "//form[@id='changePasswordForm']//button[@title='Submit']"]
+
+  - [assertText, "//h1", "Your password has been changed"]

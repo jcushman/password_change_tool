@@ -1,0 +1,16 @@
+name: Yahoo
+matches:
+  - .yahoo.com
+steps:
+  # log in
+  - [open, "https://edit.yahoo.com/config/change_pw"]
+  - [type, id=username, "{{ username }}"]
+  - [type, id=passwd, "{{ old_password }}"]
+  - [click, id=.save, ]
+
+  # submit form
+  - [type, id=password, "{{ new_password }}"]
+  - [type, id=password-confirm, "{{ new_password }}"]
+  - [click, id=primary-cta]
+
+  - [assertText, id=change-password-form, "You've changed your password."]
