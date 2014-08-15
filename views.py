@@ -178,12 +178,18 @@ class ChangePasswordsPanel(SizerPanel):
 
     def update_passwords(self):
         changed_entries = []
+
+        # set up log
         log_file = GlobalState.log_file
+        def log(message):
+            log_file.write(message)
+            log_file.flush()
+        log("==== Beginning update process ... ====\n")
+
         for login in GlobalState.selected_logins:
             rule = login['rule']
             new_password = rule.generate_password()
-            log_file.write("Updating password for %s on %s to %s ... " % (login['username'], login['domain'], new_password))
-            log_file.flush()
+            log("Updating password for %s on %s to %s ... " % (login['username'], login['domain'], new_password))
             driver = get_browser()
 
             # set up screenshot thread
@@ -213,8 +219,7 @@ class ChangePasswordsPanel(SizerPanel):
                     message = json.loads(e.msg)['errorMessage']
                 else:
                     message = str(e)
-                log_file.write("Probably failed:\n    %s" % message)
-                log_file.flush()
+                log("Probably failed:\n    %s" % message)
                 show_error("Update process failed for %s on step %s: %s" % (
                     login['domain'], i+1, message))
                 continue
@@ -222,11 +227,11 @@ class ChangePasswordsPanel(SizerPanel):
                 stop_screenshots.set()
 
             # success
-            log_file.write("Success.\n")
-            log_file.flush()
+            log("Success.\n")
             login['new_password'] = new_password
             changed_entries.append(login)
 
+        log("Updates complete.\n\n")
         pub.sendMessage('update_complete', changed_entries=changed_entries)
 
 
