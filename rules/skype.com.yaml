@@ -1,0 +1,17 @@
+name: Skype
+matches:
+  - .skype.com
+steps:
+  # log in
+  - [open, "https://secure.skype.com/account/personal/change-password-form"]
+  - [type, id=username, "{{ username }}"]
+  - [type, id=password, "{{ old_password }}"]
+  - [click, id=signIn]
+
+  # submit form
+  - [type, id=oldPassword, "{{ old_password }}"]
+  - [type, id=password1, "{{ new_password }}"]
+  - [type, id=password2, "{{ new_password }}"]
+  - [click, css=button.primaryCta]
+
+  - [assertText, css=.frameSuccess, "Your password was changed."]

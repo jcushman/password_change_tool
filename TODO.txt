@@ -1,7 +1,6 @@
 Add cancel button.
 Add warning if closing app once changes start.
 Add standard quit command.
-
 Forward/backward breadcrumbs.
-
 Password generation prefs.
+Special handling when we fail on the last step -- let the user know we're not sure whether they have the old or new password.
