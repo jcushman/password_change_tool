@@ -1,0 +1,17 @@
+name: Reddit
+matches:
+  - .reddit.com
+steps:
+  # log in
+  - [open, "https://ssl.reddit.com/prefs/update"]
+  - [type, id=user_login, "{{ username }}"]
+  - [type, id=passwd_login, "{{ old_password }}"]
+  - [click, "css=#login_login p.submit button"]
+
+  # submit form
+  - [type, "//form[@id='pref-update-password']//input[@name='curpass']", "{{ old_password }}", {error_message: "Login failed."}]
+  - [type, name=newpass, "{{ new_password }}"]
+  - [type, name=verpass, "{{ new_password }}"]
+  - [click, "css=#pref-update-password > button"]
+
+  - [assertText, //body, "your password has been updated"]
