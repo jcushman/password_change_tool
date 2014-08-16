@@ -100,7 +100,7 @@ class ChoosePasswordsPanel(SizerPanel):
         self.checklist = checklist = CheckListCtrl(self)
         self.sizer.Add(checklist, 1, wx.EXPAND)
 
-        for i, title in enumerate(("Login", "Domain", "User", "Reason unavailable")):
+        for i, title in enumerate(("Login", "Domain", "User")):
             checklist.InsertColumn(i, title)
 
         # process logins for list
@@ -124,11 +124,11 @@ class ChoosePasswordsPanel(SizerPanel):
             #     item.SetId(sys.maxint)
             #     item.SetText(login['label'])
             #     index = checklist.InsertItem(item)
-            for i, value in enumerate((login.get('domain', ''), login.get('username', ''), login.get('error', ''))):
+            for i, value in enumerate((login.get('domain', ''), login.get('username', ''))):
                 checklist.SetStringItem(index, i + 1, value)
             checklist.SetItemData(index, login_index)
 
-        for i in range(4):
+        for i in range(3):
             checklist.SetColumnWidth(i, wx.LIST_AUTOSIZE)
 
         self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.item_selected, checklist)
