@@ -1,9 +1,8 @@
 from optparse import OptionParser
-import threading
 import wx
 from wx.lib.pubsub import pub
-from helpers import show_message, load_log_file
-from models import GlobalState, Rule
+from helpers import load_log_file
+from models import GlobalState
 
 import views
 
@@ -21,7 +20,6 @@ class MainFrame(wx.Frame):
         super(MainFrame, self).__init__(None, title="Password Updater", size=(700,600))
 
         self.SetBackgroundColour(wx.WHITE)
-        self.SetAutoLayout(True)
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
@@ -33,9 +31,7 @@ class MainFrame(wx.Frame):
         self.SetTitle(title)
         self.sizer.Add(panel, 1, wx.EXPAND | wx.ALL, 30)
         self.current_panel = panel
-        panel.SetAutoLayout(True)
         self.Layout()
-        panel.sizer.Layout()
 
 class Routes(object):
     """
@@ -102,6 +98,8 @@ class Controller(object):
         self.frame = MainFrame()
         self.frame.Show()
 
+        GlobalState.controller = self
+
         pub.sendMessage('start')
 
     def show_panel(self, PanelClass, **kwargs):
@@ -137,4 +135,8 @@ if __name__ == "__main__":
 
     app = wx.App(False)
     controller = Controller(app)
+
+    # import wx.lib.inspection
+    # wx.lib.inspection.InspectionTool().Show()
+
     app.MainLoop()

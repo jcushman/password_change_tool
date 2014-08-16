@@ -37,12 +37,11 @@ def load_log_file(log_file_path):
 def secure_delete(file_path):
     try:
         subprocess.check_call(['srm', '-m', '-f', file_path])
-        print "srm deleted", file_path
     except subprocess.CalledProcessError:
         with open(file_path, "wb") as file:
             file.write("*" * os.path.getsize(file_path))
         os.unlink(file_path)
-        print "simple deleted", file_path
+
 
 class SizerPanel(wx.Panel):
     def __init__(self, parent):
@@ -55,8 +54,15 @@ class SizerPanel(wx.Panel):
         raise NotImplementedError
 
     def add_text(self, text, flags=wx.TOP, border=0):
+        from models import GlobalState
         text = "\n".join(line.strip() for line in text.strip().split("\n")) # remove whitespace at start of each line
-        self.sizer.Add(wx.StaticText(self, label=text), 0, flags, border)
+        text_widget = wx.StaticText(self, label=text)
+        self.sizer.Add(text_widget, 0, flags, border)
+
+        # This is an ugly hack to wrap the text to the width of the frame,
+        # before the panel is actually added to the frame.
+        # It would be nice if this was handled by some sort of layout event instead.
+        text_widget.Wrap(GlobalState.controller.frame.GetSize()[0]-60-border)
 
     def add_button(self, label, handler, flags=wx.TOP, border=30):
         button = wx.Button(self, label=label)

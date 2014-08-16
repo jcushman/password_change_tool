@@ -160,6 +160,8 @@ class ChangePasswordsPanel(SizerPanel):
     def add_controls(self):
         self.add_text("""
             Now we'll try to update each of your passwords ...
+
+            Don't worry if something seems to get stuck for a while -- we'll do our best, and at the end you can see what worked and what didn't.
         """)
         #TODO: self.add_button(label="Cancel", self.cancel)
         self.screenshot_well = wx.Panel(self, size=BROWSER_WINDOW_SIZE, style=wx.SUNKEN_BORDER | wx.SHAPED)
@@ -282,21 +284,20 @@ class ResultsPanel(SizerPanel):
         successful_count = sum(1 for login in logins if login.get('new_password',None))
         error_count = update_count - successful_count
 
-        self.add_text("Finished!")
-
         if successful_count:
             self.add_text("""
-                We successfully updated %s account%s. Now you will need to export your new passwords back to %s.
+                Finished! We successfully updated %s account%s. Now you will need to export your new passwords back to %s.
             """ % (successful_count, ('' if successful_count==1 else 's'), GlobalState.password_manager.display_name))
             self.add_button("Export new passwords to %s" % GlobalState.password_manager.display_name, self.export)
         else:
-            self.add_text("None of your passwords were changed.", border=30)
+            self.add_text("Finished! None of your passwords were changed.")
             self.add_button("Quit", self.quit)
 
+        error_text = ''
         if error_count:
-            self.add_text("%s account%s could not be updated." % (error_count, '' if error_count==1 else 's'), border=30)
+            error_text = "%s account%s could not be updated. " % (error_count, '' if error_count==1 else 's')
 
-        self.add_text("Details:", border=30)
+        self.add_text(error_text+"Details:", border=30)
 
         class ListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin):
             def __init__(self, *args, **kwargs):
