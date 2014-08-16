@@ -7,7 +7,7 @@ steps:
   - [click, "link=Change Account Settings"]
   -
     - if
-    - [id=auth-email]
+    - [assertElementPresent, id=auth-email, {timeout: 5}]
     -
       - [type, id=auth-email, "{{ username }}"]
       - [type, id=auth-password, "{{ old_password }}"]
@@ -17,7 +17,7 @@ steps:
       - [type, id=ap_email, "{{ username }}"]
       - [type, id=ap_password, "{{ old_password }}"]
       - [click, id=signInSubmit-input]
-      - [click, id=cnep_1A_change_password_button-input]
+  - [click, id=cnep_1A_change_password_button-input]
 
   #submit form
   - [type, id=ap_password, "{{ old_password }}"]

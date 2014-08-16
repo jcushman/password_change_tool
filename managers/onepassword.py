@@ -1,5 +1,7 @@
 import json
 import os
+import pprint
+import tempfile
 from urlparse import urlparse
 import time
 import sys
@@ -7,19 +9,25 @@ import subprocess
 import wx
 from wx.lib.pubsub import pub
 
-from helpers import SizerPanel, show_error
+from helpers import SizerPanel, show_error, secure_delete
+from managers.base import BaseImporter
 from models import GlobalState
 
 wildcard = "1Password Interchange File (*.1pif)|*.1pif"
 
-class OnePasswordImporter(object):
-    def __init__(self, controller):
-        self.controller = controller
+class OnePasswordImporter(BaseImporter):
+    display_name = "1Password"
+
+    def __init__(self, *args, **kwargs):
+        super(OnePasswordImporter, self).__init__(*args, **kwargs)
         GlobalState.onepassword = {}
         pub.subscribe(self.show_import_instructions, "onepassword__show_import_instructions")
 
     def get_password_data(self):
-        self.controller.show_panel(OnePasswordGetFile)
+        if GlobalState.options.onepassword_import_file:
+            OnePasswordGetFile.process_file(GlobalState.options.onepassword_import_file)
+        else:
+            self.controller.show_panel(OnePasswordGetFile)
 
     def save_changes(self, changed_entries):
         self.controller.show_panel(GetOutputLocationPanel, changed_entries=changed_entries)
@@ -27,15 +35,22 @@ class OnePasswordImporter(object):
     def show_import_instructions(self, import_file_path):
         self.controller.show_panel(ImportInstructionsPanel, import_file_path=import_file_path)
 
+    @classmethod
+    def add_command_line_arguments(self, parser):
+        parser.add_option("--onepassword-import-file",
+                          dest="onepassword_import_file",
+                          default=None,
+                          help="Path to 1password interchange file to import.")
+
 
 class OnePasswordGetFile(SizerPanel):
     def add_controls(self):
         self.add_text("""
-            First you'll need to export your passwords from 1Password so we can import them.
+            First you'll need to export your accounts from 1Password.
 
             IMPORTANT: Your password file will NOT leave your computer, but it will also NOT be encrypted. Make sure you keep it safe and delete it after we're done.
 
-            To export your logins from 1Password, select the items you want to export and go to "File -> Export -> Selected Items ...".
+            To export your accounts from 1Password, go to "File -> Export -> All Items ...". You can pick which passwords you want to update on the next screen.
 
             Select your exported file:
          """)
@@ -52,9 +67,10 @@ class OnePasswordGetFile(SizerPanel):
         )
 
         if dlg.ShowModal() == wx.ID_OK:
-            self.process_file(dlg.GetPath())
+            OnePasswordGetFile.process_file(dlg.GetPath())
 
-    def process_file(self, path):
+    @classmethod
+    def process_file(cls, path):
         entries = []
 
         original_path = path
@@ -100,7 +116,7 @@ class OnePasswordGetFile(SizerPanel):
 
             entry['domain'] = urlparse(entry['location']).netloc
             if not entry['domain']:
-                set_error('entry')
+                set_error(entry)
                 continue
 
             for field in entry['data']['secureContents']['fields']:
@@ -110,7 +126,7 @@ class OnePasswordGetFile(SizerPanel):
                         break
 
             if not entry.get('username', None) or not entry.get('password', None):
-                set_error('entry')
+                set_error(entry)
                 continue
 
         GlobalState.logins = entries
@@ -118,17 +134,38 @@ class OnePasswordGetFile(SizerPanel):
 
 
 class GetOutputLocationPanel(SizerPanel):
+    temp_file_path = None
+
     def __init__(self, parent, changed_entries):
         super(GetOutputLocationPanel, self).__init__(parent)
         self.changed_entries = changed_entries
 
     def add_controls(self):
         self.add_text("""
-            Your passwords have been updated. Next you will need to import your new passwords back into 1Password.
+            We can export your passwords directly to your 1Password application, or you can export a .1pif file and import it into 1Password yourself. What would you like to do?
+        """)
+        self.add_button("Send my passwords to 1Password", self.direct_export, flags=wx.TOP|wx.LEFT)
+        self.add_button("Save .1pif file", self.choose_file, flags=wx.TOP|wx.LEFT)
+        self.add_text("IMPORTANT: If you choose this option, the .1pif file will contain unencrypted passwords. Save it somewhere safe.", flags=wx.TOP|wx.LEFT, border=30)
+        self.add_text("Do not leave this screen until you have verfied that your new passwords made it into 1Password.", border=30)
+        self.add_button("OK, all set", self.done)
 
-            IMPORTANT: This file will contain unencrypted passwords. Save it somewhere safe and delete it once you are done with it.
-         """)
-        self.add_button("Choose 1Password Export Destination", self.choose_file)
+    def direct_export(self, evt):
+        # create temp file
+        temp_file = tempfile.NamedTemporaryFile(suffix='.1pif', delete=False)
+        self.save_file(temp_file)
+        temp_file.close()
+
+        # open temp file in 1Password
+        temp_file_path = temp_file.name
+        if sys.platform.startswith('darwin'):
+            subprocess.call(('open', temp_file_path))
+        elif os.name == 'nt':
+            os.startfile(temp_file_path)
+        elif os.name == 'posix':
+            subprocess.call(('xdg-open', temp_file_path))
+
+        self.temp_file_path = temp_file_path
 
     def choose_file(self, evt):
         default_dir, default_file = os.path.split(GlobalState.onepassword["original_path"])
@@ -142,22 +179,25 @@ class GetOutputLocationPanel(SizerPanel):
         )
 
         if dlg.ShowModal() == wx.ID_OK:
-            self.save_file(dlg.GetPath())
+            with open(dlg.GetPath(), 'wb') as out_file:
+                self.save_file(out_file)
 
-    def save_file(self, path):
+    def save_file(self, out_file):
         epoch_seconds = int(time.time())
-        with open(path, 'wb') as out_file:
-            for entry in self.changed_entries:
-                out = entry['data']
-                for field in out['secureContents']['fields']:
-                    if field.get('designation', None) == 'password':
-                        field['value'] = entry['new_password']
-                if not 'passwordHistory' in out:
-                    out['passwordHistory'] = []
-                out['passwordHistory'].insert(0, {'value':entry['password'], 'time':epoch_seconds})
-                out_file.write(json.dumps(out)+"\n"+entry['separator_line'])
-        pub.sendMessage("onepassword__show_import_instructions", import_file_path=path)
+        for entry in self.changed_entries:
+            out = entry['data']
+            for field in out['secureContents']['fields']:
+                if field.get('designation', None) == 'password':
+                    field['value'] = entry['new_password']
+            if not 'passwordHistory' in out:
+                out['passwordHistory'] = []
+            out['passwordHistory'].insert(0, {'value':entry['password'], 'time':epoch_seconds})
+            out_file.write(json.dumps(out)+"\n"+entry['separator_line'])
 
+    def done(self, evt):
+        if self.temp_file_path:
+            secure_delete(self.temp_file_path)
+        pub.sendMessage("finished")
 
 class ImportInstructionsPanel(SizerPanel):
     def __init__(self, parent, import_file_path):

@@ -1,10 +1,13 @@
+import json
 import os
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, InvalidElementStateException
 from selenium.webdriver import DesiredCapabilities
 from selenium.webdriver.common.by import By
 import time
+import sys
 from helpers import get_data_dir
+from models import GlobalState
 
 
 TIMEOUT = 30
@@ -12,6 +15,14 @@ WINDOW_SIZE = (1000, 800)
 
 class UnexpectedElementError(Exception):
     pass
+
+class BrowserException(Exception):
+    def __init__(self, *args, **kwargs):
+        self.original_exception = kwargs.pop('original_exception', None)
+        super(BrowserException, self).__init__(*args, **kwargs)
+
+def get_default_timeout():
+    return GlobalState.options.timeout if GlobalState.options.timeout is not None else TIMEOUT
 
 def get_browser():
     desired_capabilities = dict(DesiredCapabilities.PHANTOMJS)
@@ -22,46 +33,52 @@ def get_browser():
         desired_capabilities=desired_capabilities,
         service_log_path='phantomjs.log',
         )
-    driver.implicitly_wait(TIMEOUT)
+    driver.implicitly_wait(get_default_timeout())
     driver.set_window_size(*WINDOW_SIZE)
     return driver
 
-def run_step(driver, step, opts, timeout=None):
+def run_step(driver, step, step_args, timeout=None, error_message=None):
     """ Implement Selenium IDE commands. """
-
     try:
         if timeout is not None:
             driver.implicitly_wait(timeout)
+            current_timeout = timeout
+        else:
+            current_timeout = get_default_timeout()
 
         if step == 'open':
-            end_time = time.time() + TIMEOUT
+            url = step_args[0]
+            end_time = time.time() + current_timeout
             while True:
                 old_url = driver.current_url
-                driver.get(opts[0])
+                driver.get(url)
                 if time.time() > end_time or driver.current_url != old_url:
                     break
 
         elif step == 'type':
-            element = get_element(driver, opts[0])
+            selector, text = step_args
+            element = get_element(driver, selector)
             element.clear()
-            element.send_keys(opts[1])
+            element.send_keys(text)
 
         elif step == 'click':
-            get_element(driver, opts[0]).click()
+            selector = step_args[0]
+            get_element(driver, selector).click()
 
         # let's not actually support this
         # elif step == 'executeScript':
         #     driver.execute_script(opts[1], get_element(driver, opts[0]))
 
         elif step == 'assertElementPresent':
-            # if not found, raises NoSuchElementException
-            get_element(driver, opts[0])
+            selector = step_args[0]
+            get_element(driver, step_args[0])
 
         elif step == 'assertText':
-            end_time = time.time() + TIMEOUT
+            selector, text = step_args
+            end_time = time.time() + current_timeout
             while True:
                 try:
-                    assert opts[1] in get_element(driver, opts[0]).text
+                    assert text in get_element(driver, selector).text
                     break
                 except AssertionError:
                     if time.time() > end_time:
@@ -69,18 +86,33 @@ def run_step(driver, step, opts, timeout=None):
                     time.sleep(.1)
 
         elif step == 'assertNotFound':
-            if opts[1] is not None:
-                driver.implicitly_wait(opts[1])
+            selector = step_args[0]
             try:
-                get_element(driver, opts[0])
-                raise UnexpectedElementError(opts[2] if len(opts)>2 else "Error condition met. This usually means a login was wrong.")
+                get_element(driver, selector)
+                raise UnexpectedElementError("Found unexpected element. This usually means a login was wrong.")
             except NoSuchElementException:
                 pass
-            finally:
-                driver.implicitly_wait(TIMEOUT)
+
+    except (UnexpectedElementError, NoSuchElementException, InvalidElementStateException, AssertionError) as e:
+        # debugging
+        if GlobalState.options.debug:
+            import pdb; pdb.set_trace()
+
+        # capture all expected errors and group into single exception type
+        if error_message:
+            message = error_message
+        else:
+            try:
+                # simplify selenium errors, which have a weird JSON format
+                message = json.loads(e.msg)['errorMessage']
+            except Exception:
+                message = str(e)
+        raise BrowserException, BrowserException(message, original_exception=e), sys.exc_info()[2]
+
     finally:
+        # reset timeout
         if timeout is not None:
-            driver.implicitly_wait(TIMEOUT)
+            driver.implicitly_wait(get_default_timeout())
 
 
 search_types = {

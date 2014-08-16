@@ -1,13 +1,21 @@
+from optparse import OptionParser
+import threading
 import wx
 from wx.lib.pubsub import pub
 from helpers import show_message, load_log_file
-from models import GlobalState
+from models import GlobalState, Rule
 
 import views
+
+from managers.onepassword import OnePasswordImporter
+password_managers = {
+    'onepassword':OnePasswordImporter
+}
 
 
 class MainFrame(wx.Frame):
     current_panel = None
+    current_panel_item = None
 
     def __init__(self):
         super(MainFrame, self).__init__(None, title="Password Updater", size=(700,600))
@@ -41,11 +49,15 @@ class Routes(object):
         for route_name in route_names:
             pub.subscribe(getattr(self, route_name), route_name)
 
+    def start(self):
+        if GlobalState.options.manager:
+            pub.sendMessage('password_manager_selected', password_manager=GlobalState.options.manager)
+        else:
+            self.controller.show_panel(views.ChoosePasswordManagerPanel)
+
     def password_manager_selected(self, password_manager):
-        if password_manager == 'onepassword':
-            from managers.onepassword import OnePasswordImporter
-            self.password_manager = OnePasswordImporter(self.controller)
-        self.password_manager.get_password_data()
+        GlobalState.password_manager = password_managers[password_manager](self.controller)
+        GlobalState.password_manager.get_password_data()
 
     def got_password_entries(self):
         # see if we already have a default log file provided by the password manager module
@@ -56,29 +68,29 @@ class Routes(object):
                 GlobalState.log_file_path = GlobalState.default_log_file_path
         if not GlobalState.log_file:
             # if no default, ask user to pick
-            controller.show_panel(views.CreateLogPanel)
+            self.controller.show_panel(views.CreateLogPanel)
         else:
             # all set, move on to picking passwords
-            controller.show_panel(views.ChoosePasswordsPanel)
+            self.controller.show_panel(views.ChoosePasswordsPanel)
 
     def log_file_selected(self):
-        controller.show_panel(views.ChoosePasswordsPanel)
+
+        self.controller.show_panel(views.ChoosePasswordsPanel)
 
     def passwords_selected(self):
-        controller.show_panel(views.ChangePasswordsPanel)
+        self.controller.show_panel(views.ChangePasswordsPanel)
 
-    def update_complete(self, changed_entries):
-        if changed_entries:
-            self.password_manager.save_changes(changed_entries)
-        else:
-            show_message("No logins were changed.")
-            self.finished()
+    def update_complete(self):
+        self.controller.show_panel(views.ResultsPanel)
+
+    def export_changes(self):
+        GlobalState.password_manager.save_changes(login for login in GlobalState.selected_logins if login.get('new_password', None))
 
     def finished(self):
-        controller.show_panel(views.FinishedPanel)
+        self.controller.show_panel(views.FinishedPanel)
 
     def exit(self):
-        controller.frame.Close()
+        self.controller.frame.Close()
 
 
 class Controller(object):
@@ -88,8 +100,9 @@ class Controller(object):
         self.routes = Routes(self)
 
         self.frame = MainFrame()
-        self.show_panel(views.ChoosePasswordManagerPanel)
         self.frame.Show()
+
+        pub.sendMessage('start')
 
     def show_panel(self, PanelClass, **kwargs):
         new_panel = PanelClass(self.frame, **kwargs)
@@ -99,6 +112,29 @@ class Controller(object):
 
 
 if __name__ == "__main__":
+
+    # handle command line arguments
+    # (mostly useful for debugging)
+    parser = OptionParser(usage="usage: %prog [options]")
+    parser.add_option("-m", "--manager",
+                      dest="manager",
+                      default=None,
+                      help="Password manager to use (options: onepassword)")
+    parser.add_option("-d", "--debug",
+                      action="store_true",
+                      dest="debug",
+                      default=False,
+                      help="Enable debugging (enters pdb on web browser exception)")
+    parser.add_option("-t", "--timeout",
+                      type="int",
+                      dest="timeout",
+                      default=False,
+                      help="Timeout when looking for elements on page (in seconds)")
+    for manager in password_managers.values():
+        manager.add_command_line_arguments(parser)
+    (options, args) = parser.parse_args()
+    GlobalState.options = options
+
     app = wx.App(False)
     controller = Controller(app)
     app.MainLoop()

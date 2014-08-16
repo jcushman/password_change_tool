@@ -10,7 +10,7 @@ steps:
   - [type, id=email, "{{ username }}"]
   - [type, id=password, "{{ old_password }}"]
   - [click, id=loginSubmit]
-  - [assertNotFound, "//h4[@class='zss-error-header']", 1]
+  - [assertNotFound, "//h4[@class='zss-error-header']", {timeout: 2, error_message: "Wrong password."}]
 
   # navigate to edit password page
   - [click, "link=Edit password"]

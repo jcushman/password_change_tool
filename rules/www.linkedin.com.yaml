@@ -7,7 +7,7 @@ steps:
   - [type, id=session_key-login, "{{ username }}"]
   - [type, id=session_password-login, "{{ old_password }}"]
   - [click, id=btn-primary]
-  - [assertElementPresent, css=.nav-profile-photo]
+  - [assertElementPresent, css=.nav-profile-photo, {error_message: "Login failed."}]
 
   # open form
   - [open, "https://www.linkedin.com/settings/"]

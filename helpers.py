@@ -1,5 +1,6 @@
 import os
 import sys
+import subprocess
 import wx
 from wx.lib.pubsub import pub
 
@@ -32,6 +33,16 @@ def load_log_file(log_file_path):
         return open(log_file_path, 'a')
     except OSError:
         show_error("Can't write to selected log file.")
+
+def secure_delete(file_path):
+    try:
+        subprocess.check_call(['srm', '-m', '-f', file_path])
+        print "srm deleted", file_path
+    except subprocess.CalledProcessError:
+        with open(file_path, "wb") as file:
+            file.write("*" * os.path.getsize(file_path))
+        os.unlink(file_path)
+        print "simple deleted", file_path
 
 class SizerPanel(wx.Panel):
     def __init__(self, parent):

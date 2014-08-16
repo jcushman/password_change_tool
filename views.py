@@ -6,9 +6,10 @@ import threading
 from time import sleep
 from selenium.common.exceptions import NoSuchElementException, InvalidElementStateException
 import wx
-from wx.lib.mixins.listctrl import CheckListCtrlMixin
+from wx.lib.mixins.listctrl import CheckListCtrlMixin, ListCtrlAutoWidthMixin
 from wx.lib.pubsub import pub
-from browser import run_step as browser_run_step, get_browser, UnexpectedElementError, WINDOW_SIZE as BROWSER_WINDOW_SIZE
+from browser import run_step as browser_run_step, get_browser, UnexpectedElementError, WINDOW_SIZE as BROWSER_WINDOW_SIZE, \
+    BrowserException
 
 from helpers import SizerPanel, show_error, load_log_file
 from models import GlobalState, Rule
@@ -77,7 +78,7 @@ class ChoosePasswordsPanel(SizerPanel):
 
         class CheckListCtrl(wx.ListCtrl, CheckListCtrlMixin):
             def __init__(self, parent):
-                wx.ListCtrl.__init__(self, parent, -1, style=wx.LC_REPORT)
+                wx.ListCtrl.__init__(self, parent, wx.NewId(), style=wx.LC_REPORT | wx.BORDER_SUNKEN)
                 CheckListCtrlMixin.__init__(self)
                 self.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnItemActivated)
 
@@ -117,11 +118,12 @@ class ChoosePasswordsPanel(SizerPanel):
                 # insert line with checkbox
                 index = checklist.InsertStringItem(sys.maxint, login['label'])
             else:
-                # insert line with no checkbox
-                item = wx.ListItem()
-                item.SetId(sys.maxint)
-                item.SetText(login['label'])
-                index = checklist.InsertItem(item)
+                continue
+            #     # insert line with no checkbox
+            #     item = wx.ListItem()
+            #     item.SetId(sys.maxint)
+            #     item.SetText(login['label'])
+            #     index = checklist.InsertItem(item)
             for i, value in enumerate((login.get('domain', ''), login.get('username', ''), login.get('error', ''))):
                 checklist.SetStringItem(index, i + 1, value)
             checklist.SetItemData(index, login_index)
@@ -157,7 +159,7 @@ class ChangePasswordsPanel(SizerPanel):
 
     def add_controls(self):
         self.add_text("""
-            Now we'll update each of your passwords ...
+            Now we'll try to update each of your passwords ...
         """)
         #TODO: self.add_button(label="Cancel", self.cancel)
         self.screenshot_well = wx.Panel(self, size=BROWSER_WINDOW_SIZE, style=wx.SUNKEN_BORDER | wx.SHAPED)
@@ -209,19 +211,15 @@ class ChangePasswordsPanel(SizerPanel):
 
             try:
                 self.run_steps(driver, rule.steps, replacements)
-            except (UnexpectedElementError, NoSuchElementException, InvalidElementStateException, AssertionError) as e:
-                if not hasattr(sys, "frozen"):
-                    import ipdb; ipdb.set_trace()
-                if type(e) == NoSuchElementException:
-                    message = json.loads(e.msg)['errorMessage']
-                else:
-                    message = str(e)
-                log("Probably failed:\n    %s" % message)
-                show_error("Update process failed for %s: %s" % (
-                    login['domain'], message))
+            except BrowserException as e:
+                # if not hasattr(sys, "frozen"):
+                #     import ipdb; ipdb.set_trace()
+                log("Probably failed:\n    %s" % e.message)
+                login['update_error'] = e.message
                 continue
             finally:
                 stop_screenshots.set()
+                screenshot_thread.join()
 
             # success
             log("Success.\n")
@@ -229,7 +227,9 @@ class ChangePasswordsPanel(SizerPanel):
             changed_entries.append(login)
 
         log("Updates complete.\n\n")
-        pub.sendMessage('update_complete', changed_entries=changed_entries)
+
+        # use CallAfter to send message from this thread back to the main thread
+        wx.CallAfter(pub.sendMessage, 'update_complete')
 
     def run_steps(self, driver, steps, replacements):
         for step in steps:
@@ -237,7 +237,13 @@ class ChangePasswordsPanel(SizerPanel):
 
     def run_step(self, driver, step, replacements):
         print "Running", step
-        step_type, opts = step[0], step[1:]
+        step_type, args = step[0], step[1:]
+
+        # get opts from end of arguments list
+        if type(args[-1])==dict:
+            args, opts = args[:-1], args[-1]
+        else:
+            opts = {}
 
         # handle conditionals
         if step_type == 'if':
@@ -246,12 +252,13 @@ class ChangePasswordsPanel(SizerPanel):
             remaining_parts = step
             while remaining_parts:
                 if remaining_parts[0] == 'if' or remaining_parts[0] == 'elif':
-                    test, rule_block, remaining_parts = remaining_parts[1], remaining_parts[2], remaining_parts[3:]
+                    test_step, success_steps, remaining_parts = remaining_parts[1], remaining_parts[2], remaining_parts[3:]
                     try:
-                        browser_run_step(driver, 'assertElementPresent', test, timeout=5)
-                        substeps = rule_block
+                        self.run_step(driver, test_step, replacements)
+                        substeps = success_steps
                         break
-                    except NoSuchElementException:
+                    except BrowserException:
+                        # condition failed
                         pass
                 elif remaining_parts[0] == 'else':
                     substeps = remaining_parts[1]
@@ -260,13 +267,67 @@ class ChangePasswordsPanel(SizerPanel):
             return
 
         # handle templating
-        if step_type == 'type' and opts[1]:
+        if step_type == 'type' and args[1]:
             for from_str, to_str in replacements:
-                opts[1] = opts[1].replace("{{ %s }}" % from_str, to_str)
+                args[1] = args[1].replace("{{ %s }}" % from_str, to_str)
 
         # run step
-        browser_run_step(driver, step_type, opts)
+        browser_run_step(driver, step_type, args, **opts)
 
+
+class ResultsPanel(SizerPanel):
+    def add_controls(self):
+        logins = GlobalState.selected_logins
+        update_count = len(logins)
+        successful_count = sum(1 for login in logins if login.get('new_password',None))
+        error_count = update_count - successful_count
+
+        self.add_text("Finished!")
+
+        if successful_count:
+            self.add_text("""
+                We successfully updated %s account%s. Now you will need to export your new passwords back to %s.
+            """ % (successful_count, ('' if successful_count==1 else 's'), GlobalState.password_manager.display_name))
+            self.add_button("Export new passwords to %s" % GlobalState.password_manager.display_name, self.export)
+        else:
+            self.add_text("None of your passwords were changed.", border=30)
+            self.add_button("Quit", self.quit)
+
+        if error_count:
+            self.add_text("%s account%s could not be updated." % (error_count, '' if error_count==1 else 's'), border=30)
+
+        self.add_text("Details:", border=30)
+
+        class ListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin):
+            def __init__(self, *args, **kwargs):
+                wx.ListCtrl.__init__(self, *args, **kwargs)
+                ListCtrlAutoWidthMixin.__init__(self)
+
+        results_list = ListCtrl(self, wx.NewId(), style=wx.LC_REPORT | wx.BORDER_SUNKEN | wx.LC_EDIT_LABELS)
+        self.sizer.Add(results_list, 1, wx.EXPAND)
+
+        for i, title in enumerate(("Login", "Domain", "User", "Status")):
+            results_list.InsertColumn(i, title)
+
+        def login_sort_key(login):
+            prefix = "A" if login.get('new_password',None) else "B"
+            return prefix + login['label'].lower()
+        logins.sort(key=login_sort_key)
+
+        # add logins to list
+        for login in logins:
+            index = results_list.InsertStringItem(sys.maxint, login['label'])
+            for i, value in enumerate((login.get('domain', ''), login.get('username', ''), login.get('update_error', 'Success'))):
+                results_list.SetStringItem(index, i + 1, value)
+
+        for i in range(4):
+            results_list.SetColumnWidth(i, wx.LIST_AUTOSIZE)
+
+    def export(self, evt):
+        pub.sendMessage('export_changes')
+
+    def quit(self, evt):
+        pub.sendMessage('exit')
 
 class FinishedPanel(SizerPanel):
     def add_controls(self):

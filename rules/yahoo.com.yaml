@@ -6,7 +6,7 @@ steps:
   - [open, "https://edit.yahoo.com/config/change_pw"]
   - [type, id=username, "{{ username }}"]
   - [type, id=passwd, "{{ old_password }}"]
-  - [click, id=.save, ]
+  - [click, id=.save]
 
   # submit form
   - [type, id=password, "{{ new_password }}"]
