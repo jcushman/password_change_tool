@@ -98,11 +98,15 @@ class OnePasswordGetFile(SizerPanel):
         GlobalState.onepassword['original_path'] = original_path
         GlobalState.default_log_file_path = original_path+".log"
 
-        def set_error(entry):
-            entry['error'] = "Entry must have a location, username, and password."
+        def set_error(entry, error="Entry must have a location, username, and password."):
+            entry['error'] = error
 
         for entry in entries:
             entry['label'] = entry['data']['title']
+
+            if entry['data'].get('trashed', None):
+                set_error(entry, "Item is in trash.")
+                continue
 
             if not 'location' in entry['data'] or not 'secureContents' in entry['data'] or not 'fields' in entry['data']['secureContents']:
                 set_error(entry)
