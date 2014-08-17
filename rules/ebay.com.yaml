@@ -1,0 +1,18 @@
+name: eBay
+matches:
+  - .ebay.com
+steps:
+  # log in
+  - [open, "http://signin.ebay.com/ws/eBayISAPI.dll?ChangePasswordAndCreateHint"]
+  - [type, "id=userid", "{{ username }}"]
+  - [type, "id=pass", "{{ old_password }}"]
+  - [click, "id=sgnBt"]
+
+  # submit form
+  - [type, "id=opass", "{{ old_password }}", {error_message: "Login failed."}]
+  - [type, "id=npass", "{{ new_password }}"]
+  - [type, "id=rpass", "{{ new_password }}"]
+  - [click, "css=button.SIActBtn"]
+
+  - [assertText, "//body", "Your changes have been saved."]
+

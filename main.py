@@ -1,7 +1,8 @@
 from optparse import OptionParser
+import sys
 import wx
 from wx.lib.pubsub import pub
-from helpers import load_log_file
+from helpers import load_log_file, process_selenium_ide_file
 from models import GlobalState
 
 import views
@@ -113,7 +114,7 @@ if __name__ == "__main__":
 
     # handle command line arguments
     # (mostly useful for debugging)
-    parser = OptionParser(usage="usage: %prog [options]")
+    parser = OptionParser(usage="usage: %prog [options] [convert_selenium <selenium_ide_file>]")
     parser.add_option("-m", "--manager",
                       dest="manager",
                       default=None,
@@ -126,12 +127,17 @@ if __name__ == "__main__":
     parser.add_option("-t", "--timeout",
                       type="int",
                       dest="timeout",
-                      default=False,
+                      default=None,
                       help="Timeout when looking for elements on page (in seconds)")
     for manager in password_managers.values():
         manager.add_command_line_arguments(parser)
     (options, args) = parser.parse_args()
     GlobalState.options = options
+    GlobalState.args = args
+
+    if args and args[0] == 'convert_selenium':
+        process_selenium_ide_file(args[1])
+        sys.exit()
 
     app = wx.App(False)
     controller = Controller(app)

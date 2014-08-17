@@ -145,9 +145,8 @@ class GetOutputLocationPanel(SizerPanel):
         self.changed_entries = changed_entries
 
     def add_controls(self):
-        self.add_text("""
-            We can export your passwords directly to your 1Password application, or you can export a .1pif file and import it into 1Password yourself. What would you like to do?
-        """)
+        self.add_text("We can export your passwords directly to your 1Password application, if you use the default settings, "
+                      "or you can export a .1pif file and import it into 1Password yourself. What would you like to do?")
         self.add_button("Send my passwords to 1Password", self.direct_export, flags=wx.TOP|wx.LEFT)
         self.add_button("Save .1pif file", self.choose_file, flags=wx.TOP|wx.LEFT)
         self.add_text("IMPORTANT: If you choose this option, the .1pif file will contain unencrypted passwords. Save it somewhere safe.", flags=wx.TOP|wx.LEFT, border=30)

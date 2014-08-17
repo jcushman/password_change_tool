@@ -20,8 +20,9 @@ class Rule(object):
         rules = []
         for subdir, dirs, files in os.walk(os.path.join(get_data_dir(), 'rules')):
             for file in files:
-                with open(os.path.join(subdir, file), 'rb') as f:
-                    rules.append(Rule(**yaml.load(f)))
+                if file.endswith('.yaml'):
+                    with open(os.path.join(subdir, file), 'rb') as f:
+                        rules.append(Rule(**yaml.load(f)))
         return rules
 
     @classmethod
