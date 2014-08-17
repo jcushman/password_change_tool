@@ -1,0 +1,20 @@
+name: Google
+matches:
+  - .google.com
+steps:
+  # log in
+  - [open, "https://accounts.google.com/b/0/EditPasswd"]
+  - [type, "id=Email", "{{ username }}"]
+  - [type, "id=Passwd", "{{ old_password }}"]
+  - [click, "id=signIn"]
+
+  # submit form
+  - [type, "id=OldPasswd", "{{ old_password }}"]
+  - [type, "id=Passwd", "{{ new_password }}"]
+  - [type, "id=PasswdAgain", "{{ new_password }}"]
+  - [click, "id=save"]
+
+  # Confirming success is kind of awkward, since Google doesn't print any kind of confirmation
+  # and just dumps us back at the account page.
+  # Best we can do is to check for a link back to the password change screen.
+  - [assertElementPresent, "//a[contains(text(),'Change password')]"]
