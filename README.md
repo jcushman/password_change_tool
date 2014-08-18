@@ -41,5 +41,5 @@ Accounts:
 1. Check out this repository.
 2. [Download the PhantomJS binary](http://phantomjs.org/download.html) and place it in the contrib/ folder.
 3. `pip install requirements.txt`
-4. `python main.py`
+4. `python source/main.py`
 

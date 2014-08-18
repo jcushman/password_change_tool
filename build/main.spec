@@ -3,7 +3,7 @@ import os
 
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 
-a = Analysis(['main.py'],
+a = Analysis(['source/main.py'],
              pathex=[ROOT_DIR],
              hiddenimports=[],
              hookspath=None,
@@ -34,5 +34,5 @@ coll = COLLECT(exe,
 app = BUNDLE(coll,
              name='FreshPass.app',
              icon='assets/icon.icns',
-             #info_plist='build/Info.plist', # not yet supported in pyinstaller 2.0 -- wait for 2.1
+             #info_plist='build/Info.plist', # not yet supported in pyinstaller 2.1, so we do this in fab
 )
