@@ -1,6 +1,7 @@
 .idea
-build/main/
+build/*
 !build/main.spec
+!build/Info.plist
 dist/
 *.pyc
 contrib/*

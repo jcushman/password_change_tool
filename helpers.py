@@ -16,6 +16,9 @@ def get_data_dir():
     # running as regular script
     return os.path.dirname(__file__)
 
+def data_path(path):
+    return os.path.join(get_data_dir(), path)
+
 def bind_click_event(button, message, **kwargs):
     button.Bind(wx.EVT_BUTTON,
                 lambda evt: pub.sendMessage(message, **kwargs))
@@ -28,6 +31,13 @@ def show_message(message, title='', options=wx.OK):
 
 def show_error(message, title="Error"):
     show_message(message, title)
+
+def ask(parent=None, message=''):
+    dlg = wx.TextEntryDialog(parent, message)
+    dlg.ShowModal()
+    result = dlg.GetValue()
+    dlg.Destroy()
+    return result
 
 def load_log_file(log_file_path):
     try:
@@ -77,6 +87,7 @@ class SizerPanel(wx.Panel):
         super(SizerPanel, self).__init__(parent=parent)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.add_controls()
+        self.sizer.Add((30,30))
         self.SetSizer(self.sizer)
 
     def add_controls(self):
@@ -91,7 +102,7 @@ class SizerPanel(wx.Panel):
         # This is an ugly hack to wrap the text to the width of the frame,
         # before the panel is actually added to the frame.
         # It would be nice if this was handled by some sort of layout event instead.
-        text_widget.Wrap(GlobalState.controller.frame.GetSize()[0]-60-border)
+        text_widget.Wrap(GlobalState.controller.frame.GetSize()[0]-140-border)
 
     def add_button(self, label, handler, flags=wx.TOP, border=30):
         button = wx.Button(self, label=label)

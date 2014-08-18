@@ -1,0 +1,37 @@
+name: Bank of America
+matches:
+  - .bankofamerica.com
+steps:
+  # enter username
+  - [open, "https://www.bankofamerica.com/"]
+  - [type, "id=id", "{{ username }}"]
+  - [click, "id=hp-sign-in-btn"]
+
+  # handle challenge question
+  # TODO: This is behind an 'if' because bankofamerica is somehow detecting repeat visits and not asking
+  # the challenge question. I'd like to know how it's doing that.
+  -
+    - if
+    - [capture, "//label[@for='tlpvt-challenge-answer']", "challenge_question", {timeout: 10}]
+    -
+      - [ask, "challenge_response", "Security Question: {{ challenge_question }}"]
+      - [type, "id=tlpvt-challenge-answer", "{{ challenge_response }}"]
+      - [click, "name=enter-online-id-submit"]
+
+  # enter password
+  - [type, "id=tlpvt-passcode-input", "{{ old_password }}"]
+  - [click, "name=confirm-sitekey-submit"]
+
+  # navigate to change password form
+  - [click, "id=visit_the_Security_Center"]
+  - [click, "id=lnkSChangeID"]
+  - [click, "id=btnUpdatePasscode"]
+
+  # submit form
+  - [type, "id=tlpvt-current-passcode", "{{ old_password }}"]
+  - [type, "id=tlpvt-new-passcode", "{{ new_password }}"]
+  - [type, "id=tlpvt-confirm-new-pass", "{{ new_password }}"]
+  - [click, "id=editPasscodeSubmit"]
+
+  - [assertText, "css=.pos-ack-message", "You've successfully changed your Passcode."]
+

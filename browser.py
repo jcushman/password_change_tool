@@ -1,12 +1,13 @@
 import json
 import os
+from tempfile import NamedTemporaryFile
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, InvalidElementStateException
 from selenium.webdriver import DesiredCapabilities
 from selenium.webdriver.common.by import By
 import time
 import sys
-from helpers import get_data_dir
+from helpers import data_path
 from models import GlobalState
 
 
@@ -30,9 +31,9 @@ def get_browser(javascript_enabled=True):
     desired_capabilities["phantomjs.page.settings.userAgent"] = "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1985.67 Safari/537.36"
     desired_capabilities["phantomjs.page.settings.javascriptEnabled"] = javascript_enabled
     driver = webdriver.PhantomJS(
-        executable_path=os.path.join(get_data_dir(), 'contrib/phantomjs'),
+        executable_path=data_path('contrib/phantomjs'),
         desired_capabilities=desired_capabilities,
-        service_log_path='phantomjs.log',
+        service_log_path='phantomjs.log' if GlobalState.options.debug else os.devnull,
         )
     driver.implicitly_wait(get_default_timeout())
     driver.set_window_size(*WINDOW_SIZE)
@@ -73,9 +74,15 @@ def run_step(driver, step, step_args, timeout=None, error_message=None):
             selector = step_args[0]
             get_element(driver, selector).click()
 
-        # let's not actually support this
+        # Not sure if we should actually support this, in terms of limiting the damage a malicious script can do.
+        # On the other hand, by the time someone is running a malicious script, they can already steal your new password,
+        # so it's not clear what else we're protecting from.
         # elif step == 'executeScript':
         #     driver.execute_script(opts[1], get_element(driver, opts[0]))
+
+        elif step == 'capture':
+            selector, key = step_args
+            return get_element(driver, selector).text # key isn't used here -- will be handled by the calling function
 
         elif step == 'assertElementPresent':
             selector = step_args[0]

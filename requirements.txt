@@ -1,3 +1,4 @@
 pyyaml
 pycrypto
 py2app
+Fabric

@@ -11,7 +11,7 @@ from wx.lib.pubsub import pub
 
 from helpers import SizerPanel, show_error, secure_delete
 from managers.base import BaseImporter
-from models import GlobalState
+from models import GlobalState, FileHandler
 
 wildcard = "1Password Interchange File (*.1pif)|*.1pif"
 
@@ -24,10 +24,7 @@ class OnePasswordImporter(BaseImporter):
         pub.subscribe(self.show_import_instructions, "onepassword__show_import_instructions")
 
     def get_password_data(self):
-        if GlobalState.options.onepassword_import_file:
-            OnePasswordGetFile.process_file(GlobalState.options.onepassword_import_file)
-        else:
-            self.controller.show_panel(OnePasswordGetFile)
+        self.controller.show_panel(OnePasswordGetFile)
 
     def save_changes(self, changed_entries):
         self.controller.show_panel(GetOutputLocationPanel, changed_entries=changed_entries)
@@ -36,11 +33,10 @@ class OnePasswordImporter(BaseImporter):
         self.controller.show_panel(ImportInstructionsPanel, import_file_path=import_file_path)
 
     @classmethod
-    def add_command_line_arguments(self, parser):
-        parser.add_option("--onepassword-import-file",
-                          dest="onepassword_import_file",
-                          default=None,
-                          help="Path to 1password interchange file to import.")
+    def get_file_handlers(self):
+        return [
+            FileHandler('1pif', '1Password Interchange File', OnePasswordGetFile.process_file)
+        ]
 
 
 class OnePasswordGetFile(SizerPanel):
@@ -55,7 +51,6 @@ class OnePasswordGetFile(SizerPanel):
             Select your exported file:
          """)
         self.add_button("Choose 1Password File", self.choose_file)
-
 
     def choose_file(self, evt):
         dlg = wx.FileDialog(

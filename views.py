@@ -11,7 +11,7 @@ from wx.lib.pubsub import pub
 from browser import run_step as browser_run_step, get_browser, UnexpectedElementError, WINDOW_SIZE as BROWSER_WINDOW_SIZE, \
     BrowserException
 
-from helpers import SizerPanel, show_error, load_log_file
+from helpers import SizerPanel, show_error, load_log_file, ask
 from models import GlobalState, Rule
 
 
@@ -100,7 +100,7 @@ class ChoosePasswordsPanel(SizerPanel):
         self.checklist = checklist = CheckListCtrl(self)
         self.sizer.Add(checklist, 1, wx.EXPAND)
 
-        for i, title in enumerate(("Login", "Domain", "User")):
+        for i, title in enumerate(("Site", "Account Title", "User")):
             checklist.InsertColumn(i, title)
 
         # process logins for list
@@ -108,7 +108,7 @@ class ChoosePasswordsPanel(SizerPanel):
 
         def login_sort_key(login):
             prefix = "A" if checkable(login) else "B" if login.get('rule', None) else "C"
-            return prefix + login['label'].lower()
+            return prefix + (login['rule'].name if login.get('rule',None) else login['label']).lower()
 
         logins.sort(key=login_sort_key)
 
@@ -116,7 +116,7 @@ class ChoosePasswordsPanel(SizerPanel):
         for login_index, login in enumerate(logins):
             if checkable(login):
                 # insert line with checkbox
-                index = checklist.InsertStringItem(sys.maxint, login['label'])
+                index = checklist.InsertStringItem(sys.maxint, login['rule'].name)
             else:
                 continue
             #     # insert line with no checkbox
@@ -124,7 +124,7 @@ class ChoosePasswordsPanel(SizerPanel):
             #     item.SetId(sys.maxint)
             #     item.SetText(login['label'])
             #     index = checklist.InsertItem(item)
-            for i, value in enumerate((login.get('domain', ''), login.get('username', ''))):
+            for i, value in enumerate((login['label'], login.get('username', ''))):
                 checklist.SetStringItem(index, i + 1, value)
             checklist.SetItemData(index, login_index)
 
@@ -207,9 +207,9 @@ class ChangePasswordsPanel(SizerPanel):
             screenshot_thread = threading.Thread(target=self.update_screenshot, args=[driver, stop_screenshots])
             screenshot_thread.start()
 
-            replacements = (('username', login['username']),
-                            ('old_password', login['password']),
-                            ('new_password', new_password))
+            replacements = {'username': login['username'],
+                            'old_password': login['password'],
+                            'new_password': new_password}
 
             try:
                 self.run_steps(driver, rule.steps, replacements)
@@ -247,9 +247,12 @@ class ChangePasswordsPanel(SizerPanel):
         else:
             opts = {}
 
-        # handle conditionals
+        # replacements
+        if step_type in ('type', 'ask'):
+            for from_str, to_str in replacements.items():
+                args[1] = args[1].replace("{{ %s }}" % from_str, to_str)
+
         if step_type == 'if':
-            #import ipdb; ipdb.set_trace()
             substeps = []
             remaining_parts = step
             while remaining_parts:
@@ -266,15 +269,16 @@ class ChangePasswordsPanel(SizerPanel):
                     substeps = remaining_parts[1]
                     break
             self.run_steps(driver, substeps, replacements)
-            return
 
-        # handle templating
-        if step_type == 'type' and args[1]:
-            for from_str, to_str in replacements:
-                args[1] = args[1].replace("{{ %s }}" % from_str, to_str)
+        elif step_type == 'ask':
+            key, prompt = args
+            replacements[key] = ask(None, prompt)
 
-        # run step
-        browser_run_step(driver, step_type, args, **opts)
+        else:
+            result = browser_run_step(driver, step_type, args, **opts)
+
+            if step_type == 'capture':
+                replacements[args[1]] = result
 
 
 class ResultsPanel(SizerPanel):

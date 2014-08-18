@@ -1,15 +1,28 @@
+from collections import namedtuple
 import os
 import string
 from Crypto.Random.random import choice, sample
 import yaml
-from helpers import get_data_dir
+from helpers import data_path
 
 PASSWORD_LENGTH = 14
 PASSWORD_CHARS = string.letters + string.digits
 
 
+class FileHandler(object):
+    manager_class = None
+
+    def __init__(self, extension, description, handler, wildcard=None):
+        self.extension = extension
+        self.description = description
+        self.handler = handler
+        self.wildcard = wildcard or \
+                        "%s (*.%s)|*.%s" % (description, extension, extension)
+
+
 class Rule(object):
     def __init__(self, name=None, matches=None, password_rules=None, steps=None, javascript_enabled=True):
+        self.name = name
         self.matches = matches or []
         self.password_rules = password_rules or {}
         self.steps = steps
@@ -19,7 +32,7 @@ class Rule(object):
     def load_rules(cls):
         # load yaml files from rules/ dir
         rules = []
-        for subdir, dirs, files in os.walk(os.path.join(get_data_dir(), 'rules')):
+        for subdir, dirs, files in os.walk(data_path('rules')):
             for file in files:
                 if file.endswith('.yaml'):
                     with open(os.path.join(subdir, file), 'rb') as f:

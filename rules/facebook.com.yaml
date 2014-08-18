@@ -3,7 +3,7 @@ matches: []
 #  - www.facebook.com
 #javascript_enabled: false
 
-# Disabling this for now. PhantomJS 2.9 doesn't play well with Facebook's javascript (React),
+# Disabling this for now. PhantomJS 1.9 doesn't play well with Facebook's javascript (React),
 # or with javascript disabled. Need to figure out some workaround, or wait for the next release.
 
 steps:
