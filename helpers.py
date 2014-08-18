@@ -15,7 +15,6 @@ def get_data_dir():
             raise NotImplementedError("Don't know where to find resources on this OS yet.")
     # running as regular script
     return os.path.dirname(__file__)
-print get_data_dir()
 
 def bind_click_event(button, message, **kwargs):
     button.Bind(wx.EVT_BUTTON,

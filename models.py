@@ -9,10 +9,11 @@ PASSWORD_CHARS = string.letters + string.digits
 
 
 class Rule(object):
-    def __init__(self, name=None, matches=None, password_rules=None, steps=None):
+    def __init__(self, name=None, matches=None, password_rules=None, steps=None, javascript_enabled=True):
         self.matches = matches or []
         self.password_rules = password_rules or {}
         self.steps = steps
+        self.javascript_enabled = javascript_enabled
 
     @classmethod
     def load_rules(cls):

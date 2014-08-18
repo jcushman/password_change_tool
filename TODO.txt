@@ -8,5 +8,11 @@ Forward/backward breadcrumbs.
 Password generation prefs.
 Special handling when we fail on the last step -- let the user know we're not sure whether they have the old or new password.
 Auto-generate list of supported sites.
-Sites: Tumblr, Instagram, Pinterest, Apple, Dropbox, Ebay
+Sites:
+    Tumblr, Instagram, Pinterest
+    Apple, Microsoft Live
+    Dropbox, Box
+    Ebay, Craigslist
+    Github, Cloudflare
+    Netflix, Hulu
 Warn before changing common email accounts that might be for password recovery.

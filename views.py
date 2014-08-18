@@ -200,7 +200,7 @@ class ChangePasswordsPanel(SizerPanel):
             rule = login['rule']
             new_password = rule.generate_password()
             log("Updating password for %s on %s to %s ... " % (login['username'], login['domain'], new_password))
-            driver = get_browser()
+            driver = get_browser(rule.javascript_enabled)
 
             # set up screenshot thread
             stop_screenshots = threading.Event()

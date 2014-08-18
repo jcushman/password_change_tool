@@ -24,10 +24,11 @@ class BrowserException(Exception):
 def get_default_timeout():
     return GlobalState.options.timeout if GlobalState.options.timeout is not None else TIMEOUT
 
-def get_browser():
+def get_browser(javascript_enabled=True):
     desired_capabilities = dict(DesiredCapabilities.PHANTOMJS)
     # use Chrome user agent so sites serve the same content we see in Selenium IDE
     desired_capabilities["phantomjs.page.settings.userAgent"] = "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1985.67 Safari/537.36"
+    desired_capabilities["phantomjs.page.settings.javascriptEnabled"] = javascript_enabled
     driver = webdriver.PhantomJS(
         executable_path=os.path.join(get_data_dir(), 'contrib/phantomjs'),
         desired_capabilities=desired_capabilities,
@@ -45,10 +46,10 @@ def run_step(driver, step, step_args, timeout=None, error_message=None):
             current_timeout = timeout
         else:
             current_timeout = get_default_timeout()
+        end_time = time.time() + current_timeout
 
         if step == 'open':
             url = step_args[0]
-            end_time = time.time() + current_timeout
             while True:
                 old_url = driver.current_url
                 driver.get(url)
@@ -58,8 +59,15 @@ def run_step(driver, step, step_args, timeout=None, error_message=None):
         elif step == 'type':
             selector, text = step_args
             element = get_element(driver, selector)
-            element.clear()
-            element.send_keys(text)
+            while True:
+                try:
+                    element.clear()
+                    element.send_keys(text)
+                    break
+                except InvalidElementStateException as e:
+                    if time.time() > end_time:
+                        raise
+                    time.sleep(.1)
 
         elif step == 'click':
             selector = step_args[0]
@@ -75,7 +83,6 @@ def run_step(driver, step, step_args, timeout=None, error_message=None):
 
         elif step == 'assertText':
             selector, text = step_args
-            end_time = time.time() + current_timeout
             while True:
                 try:
                     assert text in get_element(driver, selector).text
@@ -92,6 +99,9 @@ def run_step(driver, step, step_args, timeout=None, error_message=None):
                 raise UnexpectedElementError("Found unexpected element. This usually means a login was wrong.")
             except NoSuchElementException:
                 pass
+
+        else:
+            raise BrowserException("Unrecognized command: %s" % step)
 
     except (UnexpectedElementError, NoSuchElementException, InvalidElementStateException, AssertionError) as e:
         # debugging

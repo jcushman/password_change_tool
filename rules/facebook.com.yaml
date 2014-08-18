@@ -1,12 +1,11 @@
 name: Facebook
 matches: []
 #  - www.facebook.com
-# This is disabled for now because PhantomJS 1.9.7 doesn't play well with React,
-# so Facebook doesn't enable the Save Changes button after we type.
-# Hopefully this script will work when PhantomJS 2 comes out.
-# In the meantime we could do something clever like
-#  - [executeScript, "//input[@value='Save Changes']", "arguments[0].removeAttribute('disabled')"]
-# but that doesn't work as-is and I'm tired of messing with it.
+#javascript_enabled: false
+
+# Disabling this for now. PhantomJS 2.9 doesn't play well with Facebook's javascript (React),
+# or with javascript disabled. Need to figure out some workaround, or wait for the next release.
+
 steps:
   # log in
   - [open, "https://www.facebook.com/settings?tab=account&section=password&view"]

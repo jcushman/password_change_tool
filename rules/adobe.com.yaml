@@ -1,0 +1,18 @@
+name: Adobe
+matches:
+  - .adobe.com
+steps:
+  # log in
+  - [open, "https://accounts.adobe.com/security/change-password"]
+  - [type, "id=username", "{{ username }}"]
+  - [type, "id=password", "{{ old_password }}"]
+  - [click, "id=sign_in"]
+
+  # submit form
+  - [assertElementPresent, "name=changePasswordForm"] # make sure new page has loaded, since old and new have same name for password field
+  - [type, "id=password", "{{ new_password }}"]
+  - [type, "name=confirm_password", "{{ new_password }}"]
+  - [click, "id=save-changes"]
+
+  - [assertText, "//body", "Your account changes have been saved."]
+
