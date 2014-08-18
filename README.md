@@ -1,7 +1,11 @@
-FreshPass
+FreshPass v.0.1.0
 =======================
 
 _Change all your passwords with one click._
+
+**Important:** This is alpha-quality software. It will not misuse your passwords or leak them to third parties over the internet.
+It may, however, leave unencrypted passwords on your local hard drive; lose new passwords after updating them;
+or otherwise misbehave in frustrating ways. Please use at your own risk.
 
 ## Compatibility:
 

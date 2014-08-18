@@ -1,13 +1,10 @@
-Remove phantomjs log.
 Autoupdate.
 Add cancel button.
 Add warning if closing app once changes start.
-Add standard quit command.
 Add catchall error handling to avoid password loss -- including wxPython segfaults if possible. Maybe watcher subprocess?
 Forward/backward breadcrumbs.
 Password generation prefs.
 Special handling when we fail on the last step -- let the user know we're not sure whether they have the old or new password.
-Auto-generate list of supported sites.
 Sites:
     Tumblr, Instagram, Pinterest
     Apple, Microsoft Live
@@ -16,3 +13,4 @@ Sites:
     Github, Cloudflare
     Netflix, Hulu
 Warn before changing common email accounts that might be for password recovery.
+Create encrypted log for each run, with auto-gen scrypt'ed password (e.g. ek-wab-pir-hik-ce). If opened, show changes and allow export.
