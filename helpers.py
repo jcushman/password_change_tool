@@ -10,11 +10,12 @@ def get_data_dir():
     if hasattr(sys, "frozen"):
         this_module = unicode(sys.executable, sys.getfilesystemencoding())
         if sys.platform == 'darwin':
-            return os.path.join(os.path.dirname(os.path.dirname(this_module)), 'Resources')
+            return os.path.dirname(this_module)
         else:
             raise NotImplementedError("Don't know where to find resources on this OS yet.")
     # running as regular script
     return os.path.dirname(__file__)
+print get_data_dir()
 
 def bind_click_event(button, message, **kwargs):
     button.Bind(wx.EVT_BUTTON,

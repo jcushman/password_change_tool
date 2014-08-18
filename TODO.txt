@@ -1,3 +1,5 @@
+Remove phantomjs log.
+Autoupdate.
 Add cancel button.
 Add warning if closing app once changes start.
 Add standard quit command.
