@@ -1,8 +1,9 @@
+import commands
 from optparse import OptionParser
 import sys
 import wx
 from wx.lib.pubsub import pub
-from helpers import load_log_file, process_selenium_ide_file, show_error, data_path
+from helpers import load_log_file, show_error, data_path
 from models import GlobalState
 
 import views
@@ -256,14 +257,24 @@ if __name__ == "__main__":
                       dest="timeout",
                       default=None,
                       help="Timeout when looking for elements on page (in seconds)")
+    parser.add_option("-r", "--list-rules",
+                      action="store_true",
+                      dest="list_rules",
+                      default=False,
+                      help="Print known rules and exit.")
+
     for manager in password_managers.values():
         manager.add_command_line_arguments(parser)
+
     (options, args) = parser.parse_args()
     GlobalState.options = options
     GlobalState.args = args
 
     if options.selenium_file:
-        process_selenium_ide_file(options.selenium_file)
+        commands.process_selenium_ide_file(options.selenium_file)
+        sys.exit()
+    elif options.list_rules:
+        commands.list_rules()
         sys.exit()
 
     app = App(False)
