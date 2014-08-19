@@ -1,4 +1,4 @@
-Autoupdate.
+Autoupdate scripts.
 Add cancel button.
 Add warning if closing app once changes start.
 Add catchall error handling to avoid password loss -- including wxPython segfaults if possible. Maybe watcher subprocess?
@@ -14,3 +14,5 @@ Sites:
     Netflix, Hulu
 Warn before changing common email accounts that might be for password recovery.
 Create encrypted log for each run, with auto-gen scrypt'ed password (e.g. ek-wab-pir-hik-ce). If opened, show changes and allow export.
+Running success/failure log under live view.
+Preference option to give password reminders every X weeks/months.

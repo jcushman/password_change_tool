@@ -69,6 +69,7 @@ class ChoosePasswordsPanel(SizerPanel):
 
         self.selected_indexes = selected_indexes = set()
         logins = GlobalState.logins
+
         def checkable(login):
             return not login.get('error', None)
 
@@ -214,8 +215,6 @@ class ChangePasswordsPanel(SizerPanel):
             try:
                 self.run_steps(driver, rule.steps, replacements)
             except BrowserException as e:
-                # if not hasattr(sys, "frozen"):
-                #     import ipdb; ipdb.set_trace()
                 log("Probably failed:\n    %s" % e.message)
                 login['update_error'] = e.message
                 continue

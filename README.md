@@ -44,6 +44,9 @@ Accounts:
 
 1. Check out this repository.
 2. [Download the PhantomJS binary](http://phantomjs.org/download.html) and place it in the contrib/ folder.
-3. `pip install requirements.txt`
-4. `python source/main.py`
+3. Install libyaml (optional):
+    1. Mac: `brew install libyaml`
+4. `pip install requirements.txt`
+5. [Install the wxPython binary](http://www.wxpython.org/download.php)
+6. `python source/main.py`
 

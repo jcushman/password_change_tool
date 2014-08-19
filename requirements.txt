@@ -2,3 +2,6 @@ pyyaml
 pycrypto
 py2app
 Fabric
+selenium
+watchdog
+psutil

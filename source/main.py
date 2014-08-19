@@ -3,9 +3,10 @@ from optparse import OptionParser
 import sys
 import wx
 from wx.lib.pubsub import pub
+
 from helpers import load_log_file, show_error, data_path
 from models import GlobalState
-
+import cleanup
 import views
 
 # process password manager plugins
@@ -228,7 +229,8 @@ class App(wx.App):
         event.Skip()
 
     def MacOpenFiles(self, filenames):
-        pub.sendMessage("open_file", filename=filenames[0])
+        if hasattr(sys, "frozen"):
+            pub.sendMessage("open_file", filename=filenames[0])
 
     def MacReopenApp(self):
         self.BringWindowToFront()
@@ -270,6 +272,7 @@ if __name__ == "__main__":
     GlobalState.options = options
     GlobalState.args = args
 
+    # handle non-GUI commands
     if options.selenium_file:
         commands.process_selenium_ide_file(options.selenium_file)
         sys.exit()
@@ -277,10 +280,17 @@ if __name__ == "__main__":
         commands.list_rules()
         sys.exit()
 
-    app = App(False)
-
     # handy for debugging layout
     # import wx.lib.inspection
     # wx.lib.inspection.InspectionTool().Show()
 
-    app.MainLoop()
+    # Start a subprocess that can clean up after us if we crash.
+    # GlobalState.cleanup_message is a pipe we can use to send messages on what to clean up.
+    GlobalState.cleanup_message = cleanup.start_cleanup_watcher()
+
+    # start GUI
+    app = App(False)
+    try:
+        app.MainLoop()
+    finally:
+        GlobalState.cleanup_message.send({'action':'exit'})

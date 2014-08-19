@@ -2,6 +2,7 @@ import json
 import os
 import pprint
 import tempfile
+import threading
 from urlparse import urlparse
 import time
 import sys
@@ -9,9 +10,10 @@ import subprocess
 import wx
 from wx.lib.pubsub import pub
 
-from helpers import SizerPanel, show_error, secure_delete
+from helpers import SizerPanel, show_error, secure_delete, use_ramdisk
 from managers.base import BaseImporter
 from models import GlobalState, FileHandler
+from ramdisk import RamDisk
 
 wildcard = "1Password Interchange File (*.1pif)|*.1pif"
 
@@ -41,16 +43,47 @@ class OnePasswordImporter(BaseImporter):
 
 class OnePasswordGetFile(SizerPanel):
     def add_controls(self):
-        self.add_text("""
-            First you'll need to export your accounts from 1Password.
 
-            IMPORTANT: Your password file will NOT leave your computer, but it will also NOT be encrypted. Make sure you keep it safe and delete it after we're done.
+        if use_ramdisk():
 
-            To export your accounts from 1Password, go to "File -> Export -> All Items ...". You can pick which passwords you want to update on the next screen.
+            self.add_text("""
+                First you'll need to export your accounts from 1Password.
 
-            Select your exported file:
-         """)
-        self.add_button("Choose 1Password File", self.choose_file)
+                We've created a secure drive to safely store your passwords while we change them. Your passwords won't be written to disk.
+
+                To export your accounts from 1Password, go to "File -> Export -> All Items ..." and save the file inside the "FreshPass Secure Disk" drive. You can pick which passwords you want to update on the next screen.
+            """)
+            #self.add_button("Open 1Password", None)
+            GlobalState.ramdisk = ramdisk = RamDisk("FreshPass Secure Disk")
+            ramdisk.mount()
+            ramdisk.watch()
+            GlobalState.cleanup_message.send({'action':'unmount','path':ramdisk.path})
+            pub.subscribe(self.watch_files, 'ramdisk.files_added')
+
+        else:
+
+            self.add_text("""
+                First you'll need to export your accounts from 1Password.
+
+                IMPORTANT: Your password file will NOT leave your computer, but it will also NOT be encrypted. Make sure you keep it safe and delete it after we're done.
+
+                To export your accounts from 1Password, go to "File -> Export -> All Items ...". You can pick which passwords you want to update on the next screen.
+
+                Select your exported file:
+             """)
+            self.add_button("Choose 1Password File", self.choose_file)
+
+    def watch_files(self, event_type, path, is_directory):
+        if not is_directory and path.endswith('.1pif'):
+            GlobalState.ramdisk.unwatch()
+            self.process_file(path)
+
+            # have to wait a moment to let 1P bring the exported file to the front,
+            # then we'll bring our app to the front
+            def process_file():
+                GlobalState.controller.frame.Iconize(False)
+                GlobalState.controller.frame.Raise()
+            threading.Timer(.5, process_file).start()
 
     def choose_file(self, evt):
         dlg = wx.FileDialog(
@@ -66,6 +99,7 @@ class OnePasswordGetFile(SizerPanel):
 
     @classmethod
     def process_file(cls, path):
+        print "processing"
         entries = []
 
         original_path = path
@@ -75,7 +109,10 @@ class OnePasswordGetFile(SizerPanel):
         last_entry = None
         with open(path, 'rb') as file:
             for line in file:
+                print line
+                print "\n\n\n"
                 if line.startswith('{'):
+                    print "adding"
                     entry = {
                         'data':json.loads(line)
                     }
@@ -150,7 +187,10 @@ class GetOutputLocationPanel(SizerPanel):
 
     def direct_export(self, evt):
         # create temp file
-        temp_file = tempfile.NamedTemporaryFile(suffix='.1pif', delete=False)
+        temp_file = tempfile.NamedTemporaryFile(
+            suffix='.1pif',
+            delete=False,
+            dir=GlobalState.ramdisk.path if hasattr(GlobalState, 'ramdisk') else None)
         self.save_file(temp_file)
         temp_file.close()
 

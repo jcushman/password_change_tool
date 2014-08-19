@@ -13,7 +13,7 @@ def get_data_dir():
         else:
             raise NotImplementedError("Don't know where to find resources on this OS yet.")
     # running as regular script
-    return os.path.dirname(__file__)
+    return os.path.dirname(os.path.dirname(__file__))
 
 def data_path(path):
     return os.path.join(get_data_dir(), path)
@@ -52,6 +52,10 @@ def secure_delete(file_path):
             file.write("*" * os.path.getsize(file_path))
         os.unlink(file_path)
 
+def use_ramdisk():
+    """ Return True if password managers can use a ramdisk on this platform for file exchange. """
+    return sys.platform == 'darwin'
+
 
 class SizerPanel(wx.Panel):
     def __init__(self, parent):
@@ -73,7 +77,7 @@ class SizerPanel(wx.Panel):
         # This is an ugly hack to wrap the text to the width of the frame,
         # before the panel is actually added to the frame.
         # It would be nice if this was handled by some sort of layout event instead.
-        text_widget.Wrap(GlobalState.controller.frame.GetSize()[0]-140-border)
+        text_widget.Wrap(GlobalState.controller.frame.GetSize()[0]-160-border)
 
     def add_button(self, label, handler, flags=wx.TOP, border=30):
         button = wx.Button(self, label=label)

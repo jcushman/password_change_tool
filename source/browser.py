@@ -37,6 +37,10 @@ def get_browser(javascript_enabled=True):
         )
     driver.implicitly_wait(get_default_timeout())
     driver.set_window_size(*WINDOW_SIZE)
+
+    # make sure that phantomjs process is terminated when we exit
+    GlobalState.cleanup_message.send({'action':'kill','pid':driver.service.process.pid})
+
     return driver
 
 def run_step(driver, step, step_args, timeout=None, error_message=None):
