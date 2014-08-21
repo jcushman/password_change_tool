@@ -1,6 +1,5 @@
 import json
 import os
-import pprint
 import tempfile
 import threading
 from urlparse import urlparse
@@ -10,10 +9,12 @@ import subprocess
 import wx
 from wx.lib.pubsub import pub
 
-from helpers import SizerPanel, show_error, secure_delete, use_ramdisk
+from helpers import show_error, use_ramdisk
 from managers.base import BaseImporter
 from models import GlobalState, FileHandler
 from ramdisk import RamDisk
+from crypto import secure_delete
+from widgets import SizerPanel
 
 wildcard = "1Password Interchange File (*.1pif)|*.1pif"
 
@@ -26,13 +27,16 @@ class OnePasswordImporter(BaseImporter):
         pub.subscribe(self.show_import_instructions, "onepassword__show_import_instructions")
 
     def get_password_data(self):
-        self.controller.show_panel(OnePasswordGetFile)
+        if GlobalState.args:
+            OnePasswordGetFile.process_file(GlobalState.args[0])
+        else:
+            GlobalState.controller.show_panel(OnePasswordGetFile)
 
     def save_changes(self, changed_entries):
-        self.controller.show_panel(GetOutputLocationPanel, changed_entries=changed_entries)
+        GlobalState.controller.show_panel(GetOutputLocationPanel, changed_entries=changed_entries)
 
     def show_import_instructions(self, import_file_path):
-        self.controller.show_panel(ImportInstructionsPanel, import_file_path=import_file_path)
+        GlobalState.controller.show_panel(ImportInstructionsPanel, import_file_path=import_file_path)
 
     @classmethod
     def get_file_handlers(self):
@@ -43,7 +47,6 @@ class OnePasswordImporter(BaseImporter):
 
 class OnePasswordGetFile(SizerPanel):
     def add_controls(self):
-
         if use_ramdisk():
 
             self.add_text("""
@@ -99,7 +102,6 @@ class OnePasswordGetFile(SizerPanel):
 
     @classmethod
     def process_file(cls, path):
-        print "processing"
         entries = []
 
         original_path = path
@@ -109,10 +111,7 @@ class OnePasswordGetFile(SizerPanel):
         last_entry = None
         with open(path, 'rb') as file:
             for line in file:
-                print line
-                print "\n\n\n"
                 if line.startswith('{'):
-                    print "adding"
                     entry = {
                         'data':json.loads(line)
                     }

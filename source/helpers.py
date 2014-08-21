@@ -1,6 +1,5 @@
 import os
 import sys
-import subprocess
 import wx
 from wx.lib.pubsub import pub
 
@@ -44,43 +43,16 @@ def load_log_file(log_file_path):
     except OSError:
         show_error("Can't write to selected log file.")
 
-def secure_delete(file_path):
-    try:
-        subprocess.check_call(['srm', '-m', '-f', file_path])
-    except subprocess.CalledProcessError:
-        with open(file_path, "wb") as file:
-            file.write("*" * os.path.getsize(file_path))
-        os.unlink(file_path)
-
 def use_ramdisk():
     """ Return True if password managers can use a ramdisk on this platform for file exchange. """
     return sys.platform == 'darwin'
 
+def get_password_managers():
+    # process password manager plugins
+    # TODO: make this auto-discover and move it somewhere sensible
+    from managers.onepassword import OnePasswordImporter
+    return {
+        'onepassword':OnePasswordImporter
+    }
 
-class SizerPanel(wx.Panel):
-    def __init__(self, parent):
-        super(SizerPanel, self).__init__(parent=parent)
-        self.sizer = wx.BoxSizer(wx.VERTICAL)
-        self.add_controls()
-        self.sizer.Add((30,30))
-        self.SetSizer(self.sizer)
 
-    def add_controls(self):
-        raise NotImplementedError
-
-    def add_text(self, text, flags=wx.TOP, border=0):
-        from models import GlobalState
-        text = "\n".join(line.strip() for line in text.strip().split("\n")) # remove whitespace at start of each line
-        text_widget = wx.StaticText(self, label=text)
-        self.sizer.Add(text_widget, 0, flags, border)
-
-        # This is an ugly hack to wrap the text to the width of the frame,
-        # before the panel is actually added to the frame.
-        # It would be nice if this was handled by some sort of layout event instead.
-        text_widget.Wrap(GlobalState.controller.frame.GetSize()[0]-160-border)
-
-    def add_button(self, label, handler, flags=wx.TOP, border=30):
-        button = wx.Button(self, label=label)
-        self.Bind(wx.EVT_BUTTON, handler, button)
-        self.sizer.Add(button, 0, flags, border)
-        return button

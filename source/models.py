@@ -1,13 +1,10 @@
-from collections import namedtuple
 import os
-import string
-from Crypto.Random.random import choice, sample
 import yaml
 from helpers import data_path
 
-PASSWORD_LENGTH = 14
-PASSWORD_CHARS = string.letters + string.digits
+import crypto
 
+PASSWORD_LENGTH = 14
 
 class FileHandler(object):
     manager_class = None
@@ -70,20 +67,9 @@ class Rule(object):
                         self.password_rules.get('max_length', PASSWORD_LENGTH)
                     ), self.password_rules.get('min_length', 0))
 
-        # generate password from allowed_chars or PASSWORD_CHARS
-        chars = self.password_rules.get('allowed_chars', PASSWORD_CHARS)
-        password = ''.join(choice(chars) for _ in range(length))
-
-        # if certain ranges of characters are required (e.g A-Z), make sure they're each in the password
-        required_ranges = self.password_rules.get('required_ranges', [])
-        if required_ranges:
-            # find a target character in the password to hold a letter from each required range
-            indexes = sample(range(len(password)), len(required_ranges))
-            # put a letter from each required range in the selected location
-            for index, required_range in zip(indexes, required_ranges):
-                password[index] = choice(required_range)
-
-        return password
+        return crypto.generate_password(length,
+                                        allowed_chars=self.password_rules.get('allowed_chars'),
+                                        required_ranges=self.password_rules.get('required_ranges'))
 
 
 class GlobalState(object):
@@ -91,6 +77,10 @@ class GlobalState(object):
         Store data we need during the run.
     """
     state = {}
+
+    @classmethod
+    def reset(cls):
+        cls.state = {}
 
     def __getattr__(self, item):
         if item in self.state:

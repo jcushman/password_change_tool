@@ -1,7 +1,4 @@
 class BaseImporter(object):
-    def __init__(self, controller):
-        self.controller = controller
-
     def get_password_data(self):
         raise NotImplementedError
 

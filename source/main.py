@@ -4,17 +4,13 @@ import sys
 import wx
 from wx.lib.pubsub import pub
 
-from helpers import load_log_file, show_error, data_path
+from helpers import load_log_file, show_error, data_path, get_password_managers
 from models import GlobalState
 import cleanup
 import views
+import secure_log
 
-# process password manager plugins
-# TODO: make this auto-discover and move it somewhere sensible
-from managers.onepassword import OnePasswordImporter
-password_managers = {
-    'onepassword':OnePasswordImporter
-}
+password_managers = get_password_managers()
 
 # get dictionary of file_handlers from password_managers
 file_handlers = {}
@@ -131,6 +127,12 @@ class Routes(object):
         else:
             self.controller.show_panel(views.ChoosePasswordManagerPanel)
 
+    def display_log_data(self, log_data):
+        self.controller.show_panel(views.LogDataPanel, log_data=log_data)
+
+    def export_log(self):
+        self.controller.show_panel(views.ExportLogPanel)
+
     def open_file(self, filename=None):
         print "opening", filename
         if not filename:
@@ -151,11 +153,12 @@ class Routes(object):
             file_handler = file_handlers.get(extension, None)
             if not file_handler:
                 show_error("Unrecognized file type: .%s" % extension)
-            GlobalState.password_manager = file_handler.manager_class(self.controller)
+            GlobalState.password_manager = file_handler.manager_class()
             file_handler.handler(filename)
 
     def password_manager_selected(self, password_manager):
-        GlobalState.password_manager = password_managers[password_manager](self.controller)
+        GlobalState.password_manager = password_managers[password_manager]()
+        GlobalState.password_manager_key = password_manager
         GlobalState.password_manager.get_password_data()
 
     def got_password_entries(self):
@@ -183,9 +186,19 @@ class Routes(object):
         self.controller.show_panel(views.ResultsPanel)
 
     def export_changes(self):
-        GlobalState.password_manager.save_changes(login for login in GlobalState.selected_logins if login.get('new_password', None))
+        GlobalState.password_manager.save_changes(login for login in GlobalState.selected_logins if login.get('update_success', None))
 
     def finished(self):
+        if hasattr(GlobalState, 'selected_recovery_log'):
+            secure_log.delete_log(GlobalState.selected_recovery_log)
+            remaining_logs = secure_log.get_nonempty_logs()
+            if remaining_logs:
+                GlobalState.reset()
+                pub.sendMessage('display_log_data', log_data=remaining_logs)
+                return
+        else:
+            secure_log.delete_log(GlobalState.log_id)
+
         self.controller.show_panel(views.FinishedPanel)
 
     def exit(self):
@@ -200,12 +213,17 @@ class App(wx.App):
         self.Bind(wx.EVT_ACTIVATE_APP, self.OnActivate)
 
     def OnInit(self):
+        # load this before showing the frame to avoid rendering pause
+        log_data = secure_log.get_nonempty_logs()
+
         self.routes = Routes(self)
         self.frame = MainFrame(self)
         self.frame.Show()
         GlobalState.controller = self
 
-        if GlobalState.args:
+        if log_data:
+            pub.sendMessage('display_log_data', log_data=log_data)
+        elif GlobalState.args:
             pub.sendMessage('open_file', filename=GlobalState.args[0])
         else:
             pub.sendMessage('start')
