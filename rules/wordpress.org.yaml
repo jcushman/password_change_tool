@@ -1,0 +1,18 @@
+name: WordPress Site
+matches:
+  - {url: '^(.+)/wp-admin/', kind: 'regex', priority: -1}
+  - {url: '^(.+)/wp-login\.php', kind: 'regex', priority: -1}
+steps:
+  # log in
+  - [open, "{{ url_group_1 }}/wp-admin/profile.php"]
+  - [type, "id=user_login", "{{ username }}"]
+  - [type, "id=user_pass", "{{ old_password }}"]
+  - [click, "id=wp-submit"]
+
+  # submit form
+  - [type, "id=pass1", "{{ new_password }}"]
+  - [type, "id=pass2", "{{ new_password }}"]
+  - [click, "id=submit"]
+
+  - [assertText, "id=message", "Profile updated."]
+

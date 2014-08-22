@@ -9,7 +9,7 @@ import subprocess
 import wx
 from wx.lib.pubsub import pub
 
-from helpers import show_error, use_ramdisk, data_path
+from helpers import show_error, use_ramdisk, data_path, set_up_import_ramdisk
 from managers.base import BaseImporter
 from models import GlobalState, FileHandler
 import platform_tools
@@ -31,20 +31,17 @@ class OnePasswordImporter(BaseImporter):
         if GlobalState.args:
             OnePasswordGetFile.process_file(GlobalState.args[0])
         else:
+            # try to load ramdisk:
+
+            # show wait screen
             pub.sendMessage("wait")
 
-            def load_ramdisk():
-                try:
-                    GlobalState.ramdisk = platform_tools.set_up_import_ramdisk()
-                    wx.CallAfter(pub.sendMessage, 'ramdisk.loaded')
-                except NotImplementedError:
-                    wx.CallAfter(pub.sendMessage, 'ramdisk.failed')
-
+            # subscribe to success/failure messages
             pub.subscribe(self.ramdisk_loaded, 'ramdisk.loaded')
             pub.subscribe(self.ramdisk_loaded, 'ramdisk.failed')
 
-            ramdisk_loading_thread = threading.Thread(target=load_ramdisk)
-            ramdisk_loading_thread.start()
+            # start loading in background
+            set_up_import_ramdisk()
 
     def save_changes(self, changed_entries):
         GlobalState.controller.show_panel(GetOutputLocationPanel, changed_entries=changed_entries)
@@ -64,7 +61,7 @@ class OnePasswordImporter(BaseImporter):
 
 class OnePasswordGetFile(SizerPanel):
     def add_controls(self):
-        if GlobalState.ramdisk:
+        if hasattr(GlobalState, 'ramdisk'):
 
             self.add_text("""
                 First you'll need to export your accounts from 1Password.
@@ -93,12 +90,14 @@ class OnePasswordGetFile(SizerPanel):
     def watch_files(self, event_type, path, is_directory):
         if not is_directory and path.endswith('.1pif'):
             GlobalState.ramdisk.unwatch()
+            print "processing", path
             self.process_file(path)
 
             # raise to front
             # TODO: for some reason this is still blocked by the ramdisk window
             GlobalState.controller.frame.Iconize(False)
             GlobalState.controller.frame.Raise()
+            platform_tools.bring_to_front()
 
     def choose_file(self, evt):
         dlg = wx.FileDialog(

@@ -6,7 +6,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 a = Analysis(['source/main.py'],
              pathex=[ROOT_DIR],
              hiddenimports=[],
-             hookspath=None,
+             hookspath=['build/hooks/'],
              runtime_hooks=None)
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
@@ -24,7 +24,7 @@ coll = COLLECT(exe,
                #Tree('managers','managers'),
                Tree('rules', 'rules'),
                Tree('contrib', 'contrib'),
-               Tree('assets', 'assets'),
+               Tree('resources', 'resources'),
 
                # TODO: we should use strip=False, upx=True on windows
                strip=True,
@@ -33,6 +33,6 @@ coll = COLLECT(exe,
                name='main')
 app = BUNDLE(coll,
              name='FreshPass.app',
-             icon='assets/icon.icns',
+             icon='resources/icon.icns',
              #info_plist='build/Info.plist', # not yet supported in pyinstaller 2.1, so we do this in fab
 )

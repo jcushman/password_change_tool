@@ -1,7 +1,6 @@
 import subprocess
 import threading
 import sys
-import time
 import wx
 from wx.lib.pubsub import pub
 import os
@@ -13,24 +12,26 @@ from watchdog.events import FileSystemEventHandler
 class RamDisk(object):
     """OSX-only ramdrive with file watches"""
 
-    def __init__(self, name="RAM Disk", size=1024*25, path=None, device=None):
+    def __init__(self, name="RAM Disk", size=1024*25, path=None, device=None, source_image=None):
         self.name = name
         self.path = path or "/Volumes/%s" % name
         self.device = device
-        self.size = size
+        self.size = size  # size is measured in kb
         self.watch_timer = None
+        self.source_image = source_image  # path to a disk image to initialize the ramdisk from
 
     def __del__(self):
         self.unmount()
 
     def mount(self):
         if sys.platform=='darwin':
-            self.device = subprocess.check_output(['hdiutil', 'attach', '-nomount', '-readwrite', 'ram://%s' % self.size]).strip()
-            subprocess.check_call(['diskutil', 'erasevolume', 'HFS+', self.name, self.device])
-
-            # it would be cool to be able to initialize the ram disk from a disk image
-            # something like this should work, but right now when you view the resulting disk in Finder it re-mounts a duplicate version for some reason
-            # subprocess.check_call(['asr', 'restore', '--noprompt', '--erase', '--source', data_path('assets/mac_disk_image_compressed.dmg'), '--target', self.device])
+            # multiply size by 2 because hdiutil expects a size in 512-byte sectors
+            self.device = subprocess.check_output(['hdiutil', 'attach', '-nomount', '-readwrite', 'ram://%s' % self.size*2]).strip()
+            if self.source_image:
+                subprocess.check_call(['asr', 'restore', '--noprompt', '--erase', '--source', self.source_image, '--target', self.device])
+                subprocess.check_call(['diskutil', 'mount', self.device])
+            else:
+                subprocess.check_call(['diskutil', 'erasevolume', 'HFS+', self.name, self.device])
         else:
             raise NotImplementedError
 
@@ -64,20 +65,13 @@ class RamDisk(object):
 
         self.watch_timer = observer
 
-        # self.current_files = set(os.listdir(self.path))
-        # def check():
-        #     new_files = set(os.listdir(self.path))
-        #     changed_files = new_files - self.current_files
-        #     if changed_files:
-        #         self.current_files = new_files
-        #         wx.CallAfter(pub.sendMessage, 'ramdisk.files_added', paths=[self.absolute_path(name) for name in changed_files])
-        #     self.watch_timer = threading.Timer(0.1, check)
-        #     self.watch_timer.start()
-        # check()
-
     def unwatch(self):
         if self.watch_timer:
-            self.watch_timer.stop() #cancel()
+            try:
+                self.watch_timer.stop()
+            except TypeError:
+                # this can fail if the disk was already unmounted, causing a pointer error
+                pass
             self.watch_timer = None
 
     def unmount(self):

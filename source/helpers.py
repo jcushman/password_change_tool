@@ -1,8 +1,11 @@
 import os
+import subprocess
 import sys
+import threading
 import wx
 from wx.lib.pubsub import pub
 import crypto
+import platform_tools
 from ramdisk import RamDisk
 
 
@@ -52,10 +55,29 @@ def get_password_managers():
     }
 
 def set_up_import_ramdisk(name="FreshPass Secure Disk"):
+    """
+        Mount a ramdisk in a background thread and configure it for file import.
+
+        Callers can subscribe to 'ramdisk.loaded' and 'ramdisk.failed' to be alerted when load is complete.
+        If successful, ramdisk object will be stored in GlobalState.ramdisk.
+
+        Callers can subscribe to 'ramdisk.files_added' to be alerted when files are added to the disk.
+    """
+
     from models import GlobalState
-    ramdisk = RamDisk(name)
-    ramdisk.mount()
-    GlobalState.cleanup_message.send({'action': 'unmount', 'path': ramdisk.path, 'device': ramdisk.device})
-    crypto.set_access_control_for_import_folder(ramdisk.path)
-    ramdisk.watch()
-    return ramdisk
+    def load_ramdisk():
+        try:
+            ramdisk = RamDisk(name, source_image=data_path('resources/mac_disk_image_compressed.dmg'))
+            ramdisk.mount()
+            GlobalState.cleanup_message.send({'action': 'unmount', 'path': ramdisk.path, 'device': ramdisk.device})
+            if sys.platform == 'darwin':
+                platform_tools.run_applescript(file=data_path('resources/display disk image.scpt'))
+            crypto.set_access_control_for_import_folder(ramdisk.path)
+            ramdisk.watch()
+            GlobalState.ramdisk = ramdisk
+            wx.CallAfter(pub.sendMessage, 'ramdisk.loaded')
+        except NotImplementedError:
+            wx.CallAfter(pub.sendMessage, 'ramdisk.failed')
+
+    ramdisk_loading_thread = threading.Thread(target=load_ramdisk)
+    ramdisk_loading_thread.start()

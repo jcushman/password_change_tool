@@ -42,7 +42,7 @@ class HeaderPanel(wx.Panel):
                     65, 8)
 
         # icon
-        with open(data_path('assets/icon.iconset/icon_128x128.png')) as icon_file:
+        with open(data_path('resources/icon.iconset/icon_128x128.png')) as icon_file:
             image = wx.ImageFromStream(icon_file, wx.BITMAP_TYPE_PNG)
         image = image.Scale(64, 64, wx.IMAGE_QUALITY_HIGH)
         bitmap = wx.BitmapFromImage(image)
@@ -205,7 +205,7 @@ class App(wx.App):
 
     def OnInit(self):
         # load this before showing the frame to avoid rendering pause
-        log_data = secure_log.get_nonempty_logs()
+        log_data = None #secure_log.get_nonempty_logs()
 
         self.routes = Routes(self)
         self.frame = MainFrame(self)

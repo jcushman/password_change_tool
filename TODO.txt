@@ -8,7 +8,7 @@ Sites:
     Tumblr, Instagram, Pinterest
     Apple, Microsoft Live
     Dropbox, Box
-    Ebay, Craigslist
+    Craigslist
     Github, Cloudflare
     Netflix, Hulu
 Warn before changing common email accounts that might be for password recovery.

@@ -1,4 +1,5 @@
 import os
+import re
 import yaml
 from helpers import data_path
 
@@ -18,12 +19,22 @@ class FileHandler(object):
 
 
 class Rule(object):
-    def __init__(self, name=None, matches=None, password_rules=None, steps=None, javascript_enabled=True):
+    def __init__(self, file=file, name=None, matches=None, password_rules=None, steps=None, javascript_enabled=True):
+        self.file = file
         self.name = name
-        self.matches = matches or []
+        self.targets = matches or []
         self.password_rules = password_rules or {}
         self.steps = steps
         self.javascript_enabled = javascript_enabled
+
+        # set up default target parameters
+        for i, target in enumerate(self.targets):
+            if type(target)==str:
+                # if given as a string, treat as a domain target
+                self.targets[i] = {'url':target, 'kind':'domain', 'priority':0}
+            elif target['kind']=='regex':
+                # pre-compile regex targets
+                target['regex'] = re.compile(target['url'], flags=re.IGNORECASE)
 
     @classmethod
     def load_rules(cls):
@@ -33,30 +44,50 @@ class Rule(object):
             for file in files:
                 if file.endswith('.yaml'):
                     with open(os.path.join(subdir, file), 'rb') as f:
-                        rules.append(Rule(**yaml.load(f)))
+                        rules.append(Rule(**dict(yaml.load(f), file=file)))
         return rules
 
     @classmethod
     def attach_rules(cls, logins):
         """ Given list of logins, set login['rule'] to matching rule for each, or else login['error'] """
         rules = cls.load_rules()
+
+        # Rules can each have multiple targets.
+        # We need to get all targets in (rule, target) tuples sorted by priority.
+        targets = []
+        for rule in rules:
+            targets += [(rule, target) for target in rule.targets]
+        targets.sort(key=lambda target: target[1]['priority'], reverse=True)
+
         for login in GlobalState.logins:
-            for rule in rules:
-                if rule.applies_to(login):
+            for rule, target in targets:
+                match_result = rule.applies_to(target, login)
+                if match_result:
                     login['rule'] = rule
+                    login['match_result'] = match_result
                     break
             else:
                 login['error'] = "Site not supported."
 
-    def applies_to(self, login):
-        if not login.get('domain', None):
-            return False
-        for match_domain in self.matches:
-            if match_domain.startswith('.'):
-                if login['domain'].endswith(match_domain) or login['domain'] == match_domain[1:]:
+    def applies_to(self, target, login):
+        # handle domain-based targets -- e.g www.foo.com, .foo.com
+        if target['kind'] == 'domain':
+            if not login.get('domain', None):
+                return False
+            if target['url'].startswith('.'):
+                if login['domain'].endswith(target['url']) or login['domain'] == target['url'][1:]:
                     return True
-            elif match_domain == login['domain']:
+            elif target['url'] == login['domain']:
                 return True
+
+        # handle regex-based targets -- e.g. (.+)/foo-login/
+        elif target['kind'] == 'regex':
+            if not login.get('location'):
+                return False
+            match = target['regex'].search(login['location'])
+            if match:
+                return match.groups()
+
         return False
 
     def generate_password(self):

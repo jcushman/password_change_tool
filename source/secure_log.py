@@ -3,12 +3,16 @@ import json
 import time
 
 import crypto
-from models import GlobalState
+from models import GlobalState, Rule
 
 
 class ObjectEncoder(json.JSONEncoder):
     def default(self, o):
-        return o.__dict__
+        if type(o)==Rule:
+            return o.file
+        if hasattr(o, '__dict__'):
+            return o.__dict__
+        return super(ObjectEncoder, self).default(o)
 
 def serialize(data):
     return ObjectEncoder().encode(data)

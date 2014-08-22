@@ -87,7 +87,7 @@ class ExportLogPanel(SizerPanel):
 class WaitPanel(SizerPanel):
     def add_controls(self):
         w, h = GlobalState.controller.frame.GetSize()
-        gif = wx.animate.GIFAnimationCtrl(self, -1, data_path('assets/loader.gif'), pos=(w/2-16-70, h/2-16))
+        gif = wx.animate.GIFAnimationCtrl(self, -1, data_path('resources/loader.gif'), pos=(w/2-16-70, h/2-16))
         gif.GetPlayer().UseBackgroundColour(True)
         gif.Play()
 
@@ -215,9 +215,15 @@ class ChangePasswordsPanel(SizerPanel):
             screenshot_thread = threading.Thread(target=self.update_screenshot, args=[driver, stop_screenshots])
             screenshot_thread.start()
 
+            # set up replacement dictionary
             replacements = {'username': login['username'],
                             'old_password': login['password'],
                             'new_password': new_password}
+
+            # for regex-based matches, we include the match groups in the replacements dict as 'url_group_N', counting from 1
+            if type(login['match_result'])==tuple:
+                for i, match_group in enumerate(login['match_result']):
+                    replacements['url_group_%s' % (i+1)] = match_group
 
             # make sure a step is marked as the one that actually updates the password
             for step in rule.steps:
@@ -263,9 +269,9 @@ class ChangePasswordsPanel(SizerPanel):
             opts = {}
 
         # replacements
-        if step_type in ('type', 'ask'):
+        if step_type in ('type', 'ask', 'open'):
             for from_str, to_str in replacements.items():
-                args[1] = args[1].replace("{{ %s }}" % from_str, to_str)
+                args[-1] = args[-1].replace("{{ %s }}" % from_str, to_str)
 
         if step_type == 'if':
             substeps = []

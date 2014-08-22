@@ -8,6 +8,7 @@ import sys
 from Crypto.Random.random import choice, sample
 import errno
 import keyring
+import keyring.backends.file
 import simplecrypt
 
 import platform_tools
