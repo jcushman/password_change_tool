@@ -6,8 +6,11 @@ import subprocess
 from Crypto import Random
 import sys
 from Crypto.Random.random import choice, sample
+import errno
 import keyring
 import simplecrypt
+
+import platform_tools
 
 ####################################################################
 # NOTE:
@@ -83,3 +86,32 @@ def generate_password(length, allowed_chars=None, required_ranges=None):
             password[index] = choice(required_range)
 
     return password
+
+def set_access_control_for_import_folder(path):
+    """
+        Set access control for given directory so that current user can write files to it,
+        but no one including user can read files from it.
+    """
+    if sys.platform == 'darwin':
+        subprocess.check_call(['chmod', '-R', 'u+rw,o-rwx', path])
+    else:
+        raise NotImplementedError("Can't set access controls for platform "+sys.platform)
+    # if sys.platform=='darwin':
+    #     def chmod(*args):
+    #         subprocess.call(['chmod']+list(args)+[path])
+    #     chmod('-N')
+    #     chmod('+a', 'everyone deny list,read,write,append,delete,execute,directory_inherit,file_inherit')
+    #     chmod('+a#', '0', '%s allow write,list,file_inherit,directory_inherit,add_subdirectory' % platform_tools.get_username())
+    # else:
+    #     raise NotImplementedError("Can't set access controls for platform "+sys.platform)
+    # # confirm access restrictions
+    # test_file_path = os.path.join(path, 'test')
+    # with open(test_file_path, 'w') as f:
+    #     f.write('test')
+    # try:
+    #     open(test_file_path, 'r')
+    #     raise Exception("Attempt to set access controls failed.")
+    # except IOError as e:
+    #     if e.errno != errno.EACCES:
+    #         raise
+    # os.unlink(test_file_path)

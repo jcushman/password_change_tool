@@ -1,7 +1,6 @@
 Autoupdate scripts.
 Add cancel button.
 Add warning if closing app once changes start.
-Add catchall error handling to avoid password loss -- including wxPython segfaults if possible. Maybe watcher subprocess?
 Forward/backward breadcrumbs.
 Password generation prefs.
 Special handling when we fail on the last step -- let the user know we're not sure whether they have the old or new password.
@@ -13,6 +12,9 @@ Sites:
     Github, Cloudflare
     Netflix, Hulu
 Warn before changing common email accounts that might be for password recovery.
-Create encrypted log for each run, with auto-gen scrypt'ed password (e.g. ek-wab-pir-hik-ce). If opened, show changes and allow export.
 Running success/failure log under live view.
 Preference option to give password reminders every X weeks/months.
+In Mac keychain, use -T option to specify that only this app can access the entry.
+Refactor:
+- use named attrs for GlobalState
+- use model instead of dict for logs, logins

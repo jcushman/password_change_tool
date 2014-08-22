@@ -4,7 +4,7 @@ import sys
 import wx
 from wx.lib.pubsub import pub
 
-from helpers import load_log_file, show_error, data_path, get_password_managers
+from helpers import show_error, data_path, get_password_managers
 from models import GlobalState
 import cleanup
 import views
@@ -127,6 +127,9 @@ class Routes(object):
         else:
             self.controller.show_panel(views.ChoosePasswordManagerPanel)
 
+    def wait(self):
+        self.controller.show_panel(views.WaitPanel)
+
     def display_log_data(self, log_data):
         self.controller.show_panel(views.LogDataPanel, log_data=log_data)
 
@@ -134,7 +137,6 @@ class Routes(object):
         self.controller.show_panel(views.ExportLogPanel)
 
     def open_file(self, filename=None):
-        print "opening", filename
         if not filename:
             wildcard = "|".join(file_handler.wildcard for file_handler in file_handlers.values())
             dlg = wx.FileDialog(
@@ -162,18 +164,7 @@ class Routes(object):
         GlobalState.password_manager.get_password_data()
 
     def got_password_entries(self):
-        # see if we already have a default log file provided by the password manager module
-        if GlobalState.default_log_file_path:
-            log_file = load_log_file(GlobalState.default_log_file_path)
-            if log_file:
-                GlobalState.log_file = log_file
-                GlobalState.log_file_path = GlobalState.default_log_file_path
-        if not GlobalState.log_file:
-            # if no default, ask user to pick
-            self.controller.show_panel(views.CreateLogPanel)
-        else:
-            # all set, move on to picking passwords
-            self.controller.show_panel(views.ChoosePasswordsPanel)
+        self.controller.show_panel(views.ChoosePasswordsPanel)
 
     def log_file_selected(self):
 

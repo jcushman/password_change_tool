@@ -66,7 +66,7 @@ def cleanup(messages):
     for message in messages:
         try:
             if message['action']=='unmount':
-                ramdisk = RamDisk(path=message['path'])
+                ramdisk = RamDisk(path=message['path'], device=message['device'])
                 ramdisk.unmount()
             elif message['action']=='kill':
                 message['process'].terminate()

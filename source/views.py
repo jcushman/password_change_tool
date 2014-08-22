@@ -3,14 +3,14 @@ from datetime import datetime
 import threading
 from time import sleep
 import wx
+import wx.animate
 from wx.lib.pubsub import pub
-from browser import run_step as browser_run_step, get_browser, WINDOW_SIZE as BROWSER_WINDOW_SIZE, \
-    BrowserException
+from browser import run_step as browser_run_step, get_browser, WINDOW_SIZE as BROWSER_WINDOW_SIZE, BrowserException
 
-from helpers import load_log_file, ask, get_password_managers
+from helpers import ask, get_password_managers, data_path
 from models import GlobalState, Rule
 import crypto
-from widgets import SizerPanel, CheckListCtrl, ListCtrl
+from widgets import SizerPanel, CheckListCtrl
 import secure_log
 
 
@@ -69,9 +69,7 @@ class ExportLogPanel(SizerPanel):
         GlobalState.password_manager = get_password_managers()[log['manager']]()
         GlobalState.selected_logins = logins = [entry for entry in log['entries'] if entry.get('update_attempted')]
 
-        self.add_text("""
-            According to our log, the accounts listed below were updated on a previous run.
-        """ % (GlobalState.password_manager.display_name))
+        self.add_text("""According to our log, the accounts listed below were updated on a previous run.""")
         self.add_button("Export new passwords to %s" % GlobalState.password_manager.display_name, self.export)
 
         self.add_text("Details:", border=30)
@@ -86,6 +84,14 @@ class ExportLogPanel(SizerPanel):
         pub.sendMessage('export_changes')
 
 
+class WaitPanel(SizerPanel):
+    def add_controls(self):
+        w, h = GlobalState.controller.frame.GetSize()
+        gif = wx.animate.GIFAnimationCtrl(self, -1, data_path('assets/loader.gif'), pos=(w/2-16-70, h/2-16))
+        gif.GetPlayer().UseBackgroundColour(True)
+        gif.Play()
+
+
 class ChoosePasswordManagerPanel(SizerPanel):
     def add_controls(self):
         self.add_text("""
@@ -97,37 +103,6 @@ class ChoosePasswordManagerPanel(SizerPanel):
 
     def button_clicked(self, evt):
         pub.sendMessage("password_manager_selected", password_manager="onepassword")
-
-
-
-class CreateLogPanel(SizerPanel):
-    def add_controls(self):
-        self.add_text("""
-            Next, choose a location to save the log file. This will record all of the changes we make in case anything goes wrong.
-
-            IMPORTANT: The log file will contain your new passwords unencrypted. Be sure to keep it safe and delete it after you're done with it.
-        """)
-        self.add_button("Choose Log File", self.choose_file)
-
-    def choose_file(self, evt):
-        dlg = wx.FileDialog(
-            self, message="Choose a file",
-            # defaultDir=os.getcwd(),
-            defaultFile="",
-            wildcard="*.log",
-            style=wx.SAVE
-        )
-
-        while True:
-            if dlg.ShowModal() == wx.ID_OK:
-                log_file_path = dlg.GetPath()
-                log_file = load_log_file(log_file_path)
-                if not log_file:
-                    continue
-                GlobalState.log_file_path = log_file_path
-                GlobalState.log_file = log_file
-                pub.sendMessage("log_file_selected")
-            break
 
 
 class ChoosePasswordsPanel(SizerPanel):
@@ -149,7 +124,7 @@ class ChoosePasswordsPanel(SizerPanel):
                 else:
                     parent.continue_button.Disable()
 
-        matched_logins.sort(key=lambda login: (login['rule'].name, login['label']))
+        matched_logins.sort(key=lambda login: (login['rule'].name.lower(), login['label'].lower()))
         self.checklist = checklist = self.add_list(
             ("Site", "Account Title", "User"),
             [(l['rule'].name, l['label'], l.get('username', '')) for l in matched_logins],
@@ -196,7 +171,7 @@ class ChangePasswordsPanel(SizerPanel):
         self.add_text("""
             Now we'll try to update each of your passwords.
 
-            Don't worry if we get stuck for a while -- we'll do our best, and at the end you can see what worked and what didn't.
+            Don't worry if we get stuck for a while -- we'll let you know at the end what we were able to change and what you'll have to change manually.
         """)
         #TODO: self.add_button(label="Cancel", self.cancel)
         self.screenshot_well = wx.Panel(self, size=BROWSER_WINDOW_SIZE, style=wx.SUNKEN_BORDER | wx.SHAPED)
@@ -349,7 +324,7 @@ class ResultsPanel(SizerPanel):
         logins.sort(key=lambda login: login['label'].lower())
         self.add_list(
             ("Login", "Domain", "User", "Status"),
-            [(l['label'], l.get('domain', ''), l.get('username', ''), l.get('update_error', 'Success')) for l in logins]
+            [(l['label'], l.get('domain', ''), l.get('username', ''), 'Not changed' if l.get('update_error') else 'Success') for l in logins]
         )
 
     def export(self, evt):
@@ -361,7 +336,7 @@ class ResultsPanel(SizerPanel):
 
 class FinishedPanel(SizerPanel):
     def add_controls(self):
-        if GlobalState.selected_recovery_log:
+        if hasattr(GlobalState, 'selected_recovery_log'):
             self.add_text("Log recovery complete!")
         else:
             self.add_text("All done!")

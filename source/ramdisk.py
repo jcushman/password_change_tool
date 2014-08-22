@@ -9,12 +9,14 @@ import os
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
+
 class RamDisk(object):
     """OSX-only ramdrive with file watches"""
 
-    def __init__(self, name="RAM Disk", size=1024*25, path=None):
+    def __init__(self, name="RAM Disk", size=1024*25, path=None, device=None):
         self.name = name
         self.path = path or "/Volumes/%s" % name
+        self.device = device
         self.size = size
         self.watch_timer = None
 
@@ -22,10 +24,15 @@ class RamDisk(object):
         self.unmount()
 
     def mount(self):
-        subprocess.call("diskutil erasevolume HFS+ '%s' `hdiutil attach -nomount -readwrite ram://%d`" % (self.name, self.size), shell=True)
-        subprocess.call(["chmod", "u+w", self.path])
         if sys.platform=='darwin':
-            subprocess.call(["chmod", "u+r", os.path.join(self.path, '.Trashes')]) # watchdog throws a permission error if it can't read this
+            self.device = subprocess.check_output(['hdiutil', 'attach', '-nomount', '-readwrite', 'ram://%s' % self.size]).strip()
+            subprocess.check_call(['diskutil', 'erasevolume', 'HFS+', self.name, self.device])
+
+            # it would be cool to be able to initialize the ram disk from a disk image
+            # something like this should work, but right now when you view the resulting disk in Finder it re-mounts a duplicate version for some reason
+            # subprocess.check_call(['asr', 'restore', '--noprompt', '--erase', '--source', data_path('assets/mac_disk_image_compressed.dmg'), '--target', self.device])
+        else:
+            raise NotImplementedError
 
     def watch(self):
         """publish any top-level files added to the drive"""
@@ -41,7 +48,7 @@ class RamDisk(object):
 
             def dispatch(self, event):
                 self.previous_events[event.src_path] = event
-                threading.Timer(.1, self.check_time, args=[event]).start()
+                threading.Timer(.5, self.check_time, args=[event]).start()
 
             def check_time(self, event):
                 if self.previous_events[event.src_path] == event:
@@ -76,7 +83,11 @@ class RamDisk(object):
     def unmount(self):
         """terminate any watches and unmount the drive"""
         self.unwatch()
-        subprocess.call(["umount", "-f", self.path])
+        if sys.platform == 'darwin':
+            subprocess.call(["umount", "-f", self.path])
+            subprocess.call(["hdiutil", "detach", self.device])
+        else:
+            raise NotImplementedError
 
     def absolute_path(self, name):
         return os.path.join(self.path, name)

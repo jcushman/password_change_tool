@@ -39,7 +39,10 @@ def delete_log(log_id):
     data = get_data()
     if log_id in data:
         del data[log_id]
-        save_data(data)
+        if data:
+            save_data(data)
+        else:
+            crypto.delete_secure_data()
 
 @contextmanager
 def edit_log():
@@ -61,7 +64,6 @@ def get_nonempty_logs():
         Then return the remaining logs that do contain attempts.
     """
     data = get_data()
-    print "GOT", data
     if not data:
         return None
 
@@ -79,7 +81,5 @@ def get_nonempty_logs():
         crypto.delete_secure_data()
     elif log_removed:
         save_data(new_data)
-
-    print "RETURNING", new_data
 
     return new_data

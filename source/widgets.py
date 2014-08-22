@@ -66,7 +66,6 @@ class SizerPanel(wx.Panel):
             list_ctl.InsertColumn(i, title)
 
         for row in rows:
-            print row
             index = list_ctl.InsertStringItem(sys.maxint, row[0])
             if len(headers)>1:
                 for i, value in enumerate(row[1:]):

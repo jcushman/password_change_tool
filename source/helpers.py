@@ -2,6 +2,8 @@ import os
 import sys
 import wx
 from wx.lib.pubsub import pub
+import crypto
+from ramdisk import RamDisk
 
 
 def get_data_dir():
@@ -37,12 +39,6 @@ def ask(parent=None, message=''):
     dlg.Destroy()
     return result
 
-def load_log_file(log_file_path):
-    try:
-        return open(log_file_path, 'a')
-    except OSError:
-        show_error("Can't write to selected log file.")
-
 def use_ramdisk():
     """ Return True if password managers can use a ramdisk on this platform for file exchange. """
     return sys.platform == 'darwin'
@@ -55,4 +51,11 @@ def get_password_managers():
         'onepassword':OnePasswordImporter
     }
 
-
+def set_up_import_ramdisk(name="FreshPass Secure Disk"):
+    from models import GlobalState
+    ramdisk = RamDisk(name)
+    ramdisk.mount()
+    GlobalState.cleanup_message.send({'action': 'unmount', 'path': ramdisk.path, 'device': ramdisk.device})
+    crypto.set_access_control_for_import_folder(ramdisk.path)
+    ramdisk.watch()
+    return ramdisk

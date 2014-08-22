@@ -9,11 +9,12 @@ import subprocess
 import wx
 from wx.lib.pubsub import pub
 
-from helpers import show_error, use_ramdisk
+from helpers import show_error, use_ramdisk, data_path
 from managers.base import BaseImporter
 from models import GlobalState, FileHandler
+import platform_tools
 from ramdisk import RamDisk
-from crypto import secure_delete
+from crypto import secure_delete, set_access_control_for_import_folder
 from widgets import SizerPanel
 
 wildcard = "1Password Interchange File (*.1pif)|*.1pif"
@@ -30,13 +31,29 @@ class OnePasswordImporter(BaseImporter):
         if GlobalState.args:
             OnePasswordGetFile.process_file(GlobalState.args[0])
         else:
-            GlobalState.controller.show_panel(OnePasswordGetFile)
+            pub.sendMessage("wait")
+
+            def load_ramdisk():
+                try:
+                    GlobalState.ramdisk = platform_tools.set_up_import_ramdisk()
+                    wx.CallAfter(pub.sendMessage, 'ramdisk.loaded')
+                except NotImplementedError:
+                    wx.CallAfter(pub.sendMessage, 'ramdisk.failed')
+
+            pub.subscribe(self.ramdisk_loaded, 'ramdisk.loaded')
+            pub.subscribe(self.ramdisk_loaded, 'ramdisk.failed')
+
+            ramdisk_loading_thread = threading.Thread(target=load_ramdisk)
+            ramdisk_loading_thread.start()
 
     def save_changes(self, changed_entries):
         GlobalState.controller.show_panel(GetOutputLocationPanel, changed_entries=changed_entries)
 
     def show_import_instructions(self, import_file_path):
         GlobalState.controller.show_panel(ImportInstructionsPanel, import_file_path=import_file_path)
+
+    def ramdisk_loaded(self):
+        GlobalState.controller.show_panel(OnePasswordGetFile)
 
     @classmethod
     def get_file_handlers(self):
@@ -47,23 +64,20 @@ class OnePasswordImporter(BaseImporter):
 
 class OnePasswordGetFile(SizerPanel):
     def add_controls(self):
-        if use_ramdisk():
+        if GlobalState.ramdisk:
 
             self.add_text("""
                 First you'll need to export your accounts from 1Password.
 
-                We've created a secure drive to safely store your passwords while we change them. Your passwords won't be written to disk.
+                We've created a secure virtual drive to safely store your passwords while we change them. Your passwords won't be written to disk.
 
                 To export your accounts from 1Password, go to "File -> Export -> All Items ..." and save the file inside the "FreshPass Secure Disk" drive. You can pick which passwords you want to update on the next screen.
             """)
             #self.add_button("Open 1Password", None)
-            GlobalState.ramdisk = ramdisk = RamDisk("FreshPass Secure Disk")
-            ramdisk.mount()
-            ramdisk.watch()
-            GlobalState.cleanup_message.send({'action':'unmount','path':ramdisk.path})
             pub.subscribe(self.watch_files, 'ramdisk.files_added')
 
         else:
+            # platform doesn't support ramdisk
 
             self.add_text("""
                 First you'll need to export your accounts from 1Password.
@@ -81,12 +95,10 @@ class OnePasswordGetFile(SizerPanel):
             GlobalState.ramdisk.unwatch()
             self.process_file(path)
 
-            # have to wait a moment to let 1P bring the exported file to the front,
-            # then we'll bring our app to the front
-            def process_file():
-                GlobalState.controller.frame.Iconize(False)
-                GlobalState.controller.frame.Raise()
-            threading.Timer(.5, process_file).start()
+            # raise to front
+            # TODO: for some reason this is still blocked by the ramdisk window
+            GlobalState.controller.frame.Iconize(False)
+            GlobalState.controller.frame.Raise()
 
     def choose_file(self, evt):
         dlg = wx.FileDialog(
@@ -127,7 +139,6 @@ class OnePasswordGetFile(SizerPanel):
             return
 
         GlobalState.onepassword['original_path'] = original_path
-        GlobalState.default_log_file_path = original_path+".log"
 
         def set_error(entry, error="Entry must have a location, username, and password."):
             entry['error'] = error
