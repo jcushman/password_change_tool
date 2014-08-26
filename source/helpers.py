@@ -1,12 +1,15 @@
+import ctypes
+from multiprocessing.pool import ThreadPool
 import os
-import subprocess
 import sys
 import threading
 import wx
 from wx.lib.pubsub import pub
+
 import crypto
 import platform_tools
 from ramdisk import RamDisk
+from global_state import GlobalState
 
 
 def get_data_dir():
@@ -63,8 +66,6 @@ def set_up_import_ramdisk(name="FreshPass Secure Disk"):
 
         Callers can subscribe to 'ramdisk.files_added' to be alerted when files are added to the disk.
     """
-
-    from models import GlobalState
     def load_ramdisk():
         try:
             ramdisk = RamDisk(name, source_image=data_path('resources/mac_disk_image_compressed.dmg'))
@@ -81,3 +82,37 @@ def set_up_import_ramdisk(name="FreshPass Secure Disk"):
 
     ramdisk_loading_thread = threading.Thread(target=load_ramdisk)
     ramdisk_loading_thread.start()
+
+def get_first_result_from_threads(calls):
+    calls = list(enumerate(calls))
+
+    def run_func(call):
+        i, call = call
+        func = call[0]
+        args = call[1] if len(call)>1 else []
+        kwargs = call[2] if len(call)>2 else {}
+        try:
+            return i, func(*args, **kwargs)
+        except Exception as e:
+            return i, e
+
+    pool = ThreadPool(processes=len(calls))
+    result = pool.imap_unordered(run_func, calls).next()
+
+    for thread in pool._pool:
+        # via http://stackoverflow.com/a/15274929
+        if not thread.isAlive():
+            continue
+        exc = ctypes.py_object(SystemExit)
+        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+            ctypes.c_long(thread.ident), exc)
+        if res == 0:
+            raise ValueError("nonexistent thread id")
+        elif res > 1:
+            # """if it returns a number greater than one, you're in trouble,
+            # and you should call it again with exc=NULL to revert the effect"""
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(thread.ident, None)
+            raise SystemError("PyThreadState_SetAsyncExc failed")
+
+    return result
+

@@ -89,15 +89,17 @@ class OnePasswordGetFile(SizerPanel):
 
     def watch_files(self, event_type, path, is_directory):
         if not is_directory and path.endswith('.1pif'):
-            GlobalState.ramdisk.unwatch()
             print "processing", path
-            self.process_file(path)
 
             # raise to front
-            # TODO: for some reason this is still blocked by the ramdisk window
             GlobalState.controller.frame.Iconize(False)
             GlobalState.controller.frame.Raise()
             platform_tools.bring_to_front()
+
+            GlobalState.ramdisk.unwatch()
+            self.process_file(path)
+            secure_delete(path)
+
 
     def choose_file(self, evt):
         dlg = wx.FileDialog(
@@ -159,7 +161,9 @@ class OnePasswordGetFile(SizerPanel):
                 set_error(entry)
                 continue
 
-            entry['domain'] = urlparse(entry['location']).netloc
+            parsed_url = urlparse(entry['location'])
+            entry['domain'] = parsed_url.netloc
+            entry['scheme'] = parsed_url.scheme
             if not entry['domain']:
                 set_error(entry)
                 continue

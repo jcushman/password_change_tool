@@ -1,3 +1,10 @@
+import multiprocessing
+from multiprocessing.pool import ThreadPool
+import os
+import threading
+import requests
+import time
+import yaml
 import commands
 from optparse import OptionParser
 import sys
@@ -5,7 +12,8 @@ import wx
 from wx.lib.pubsub import pub
 
 from helpers import show_error, data_path, get_password_managers
-from models import GlobalState
+from models import PasswordEndpointRule
+from global_state import GlobalState
 import cleanup
 import views
 import secure_log
@@ -164,11 +172,38 @@ class Routes(object):
         GlobalState.password_manager.get_password_data()
 
     def got_password_entries(self):
-        self.controller.show_panel(views.ChoosePasswordsPanel)
-
-    def log_file_selected(self):
-
-        self.controller.show_panel(views.ChoosePasswordsPanel)
+        if GlobalState.options.no_password_policies:
+            self.controller.show_panel(views.ChoosePasswordsPanel)
+            return
+        def check_password_update_endpoint(login):
+            print time.time(), threading.current_thread()
+            if not login.get('domain'):
+                return None
+            print "checking", login['domain']
+            scheme = login['scheme'] if GlobalState.options.ssl_not_required else 'https'
+            announce_url = "%s://%s/.well-known/password-policy" % (scheme, login['domain'])
+            try:
+                result = requests.get(announce_url, verify=True, allow_redirects=False, timeout=5)
+            except Exception as e:
+                print e
+                return
+            if result.status_code != 200:
+                return
+            try:
+                data = yaml.load(result.content)
+            except Exception as e:
+                print e
+                return
+            if not type(data)==dict or not data.get('endpoint') or not data['endpoint'].startswith('/'):
+                return
+            login['rule'] = PasswordEndpointRule(login['domain'], announce_url, data)
+            print "got", login['domain'], data
+        def check_complete(results):
+            print "DONE"
+            wx.CallAfter(self.controller.show_panel, views.ChoosePasswordsPanel)
+        pool = ThreadPool(processes=50)
+        pool.map_async(check_password_update_endpoint, GlobalState.logins, callback=check_complete)
+        pub.sendMessage('wait')
 
     def passwords_selected(self):
         self.controller.show_panel(views.ChangePasswordsPanel)
@@ -205,7 +240,7 @@ class App(wx.App):
 
     def OnInit(self):
         # load this before showing the frame to avoid rendering pause
-        log_data = None #secure_log.get_nonempty_logs()
+        log_data = secure_log.get_nonempty_logs()
 
         self.routes = Routes(self)
         self.frame = MainFrame(self)
@@ -273,6 +308,16 @@ if __name__ == "__main__":
                       dest="list_rules",
                       default=False,
                       help="Print known rules and exit.")
+    parser.add_option("--no-password-policies",
+                      action="store_true",
+                      dest="no_password_policies",
+                      default=False,
+                      help="Don't check for remote-hosted password policies.")
+    parser.add_option("--no-ssl-required",
+                      action="store_true",
+                      dest="ssl_not_required",
+                      default=False,
+                      help="Don't require ssl when checking for password policies (insecure -- for testing only!).")
 
     for manager in password_managers.values():
         manager.add_command_line_arguments(parser)

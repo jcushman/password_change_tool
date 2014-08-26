@@ -44,9 +44,10 @@ def secure_delete(file_path):
     """
     try:
         # use system tool -- should work on mac and linux
-        subprocess.check_call(['srm', '-m', '-f', file_path])
+        subprocess.check_call(['srm', '-m', '-f', '-r', file_path])
     except subprocess.CalledProcessError:
         # fallback to overwriting with random data and deleting
+        # TODO: this should be recursive, like the srm call
         with open(file_path, "wb") as file:
             file.write(Random.new().read(os.path.getsize(file_path)))
         os.unlink(file_path)
@@ -67,7 +68,8 @@ def load_secure_data():
     encoded_data = keyring.get_password("FreshPass Encrypted Log", "log")
     if encoded_data:
         encrypted_data = base64.b64decode(encoded_data)
-        return simplecrypt.decrypt(get_hardware_id(), encrypted_data)
+        decrypted_data = simplecrypt.decrypt(get_hardware_id(), encrypted_data)
+        return decrypted_data
 
 def delete_secure_data():
     keyring.delete_password("FreshPass Encrypted Log", "log")

@@ -3,13 +3,14 @@ import json
 import time
 
 import crypto
-from models import GlobalState, Rule
+from global_state import GlobalState
 
 
 class ObjectEncoder(json.JSONEncoder):
     def default(self, o):
-        if type(o)==Rule:
-            return o.file
+        from models import Rule
+        if isinstance(o, Rule):
+            return o.file_name
         if hasattr(o, '__dict__'):
             return o.__dict__
         return super(ObjectEncoder, self).default(o)

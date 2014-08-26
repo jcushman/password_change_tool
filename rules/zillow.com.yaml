@@ -10,10 +10,12 @@ steps:
   - [type, id=email, "{{ username }}"]
   - [type, id=password, "{{ old_password }}"]
   - [click, id=loginSubmit]
-  - [assertNotFound, "//h4[@class='zss-error-header']", {timeout: 2, error_message: "Login failed."}]
 
-  # navigate to edit password page
-  - [click, "link=Edit password", {error_message: "Login failed."}]
+  - tryAll:
+    # check for wrong password
+    - try: [assertNotFound, "//h4[@class='zss-error-header']", {error_message: "Login failed."}]
+    # navigate to edit password page
+    - try: [click, "link=Edit password", {error_message: "Login failed."}]
 
   # submit new password
   - [type, id=oldPasswordField, "{{ old_password }}"]

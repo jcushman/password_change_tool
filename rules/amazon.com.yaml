@@ -5,18 +5,19 @@ steps:
   # log in
   - [open, "https://www.amazon.com/gp/css/homepage.html/ref=nav_youraccount_ya"]
   - [click, "link=Change Account Settings"]
-  -
-    - if
-    - [assertElementPresent, id=auth-email, {timeout: 5}]
-    -
-      - [type, id=auth-email, "{{ username }}"]
+
+  # Amazon at the moment is randomly using two different login screens --
+  # presumably one of them will be segued out soon.
+  - tryAll:
+    - try: [type, id=auth-email, "{{ username }}"]
+      then:
       - [type, id=auth-password, "{{ old_password }}"]
       - [click, "css=.a-button-primary .a-button-input"]
-    - else
-    -
-      - [type, id=ap_email, "{{ username }}"]
+    - try: [type, id=ap_email, "{{ username }}"]
+      then:
       - [type, id=ap_password, "{{ old_password }}"]
       - [click, id=signInSubmit-input]
+
   - [click, id=cnep_1A_change_password_button-input]
 
   #submit form

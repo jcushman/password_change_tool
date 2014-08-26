@@ -8,7 +8,8 @@ from wx.lib.pubsub import pub
 from browser import run_step as browser_run_step, get_browser, WINDOW_SIZE as BROWSER_WINDOW_SIZE, BrowserException
 
 from helpers import ask, get_password_managers, data_path
-from models import GlobalState, Rule
+from models import Rule
+from global_state import GlobalState
 import crypto
 from widgets import SizerPanel, CheckListCtrl
 import secure_log
@@ -44,10 +45,14 @@ class LogDataPanel(SizerPanel):
 
         self.export_button = self.add_button('Export passwords from selected log', self.export_selected)
         self.export_button.Disable()
-        self.add_button('No thanks, delete %s' % ('this log' if log_count==1 else 'these logs'), self.clear_log)
+        self.add_button('No thanks, delete %s' % ('this log' if log_count == 1 else 'these logs'), self.clear_log)
+        self.add_button('Decide later', self.skip)
 
     def clear_log(self, evt):
         crypto.delete_secure_data()
+        pub.sendMessage('start')
+
+    def skip(self, evt):
         pub.sendMessage('start')
 
     def item_selected(self, evt):
@@ -203,106 +208,19 @@ class ChangePasswordsPanel(SizerPanel):
 
         for login in GlobalState.selected_logins:
             rule = login['rule']
+
+            # generate password and start log
             new_password = rule.generate_password()
             login['new_password'] = new_password
-
             secure_log.append_entry(login)
 
-            driver = get_browser(rule.javascript_enabled)
-
-            # set up screenshot thread
-            stop_screenshots = threading.Event()
-            screenshot_thread = threading.Thread(target=self.update_screenshot, args=[driver, stop_screenshots])
-            screenshot_thread.start()
-
-            # set up replacement dictionary
-            replacements = {'username': login['username'],
-                            'old_password': login['password'],
-                            'new_password': new_password}
-
-            # for regex-based matches, we include the match groups in the replacements dict as 'url_group_N', counting from 1
-            if type(login['match_result'])==tuple:
-                for i, match_group in enumerate(login['match_result']):
-                    replacements['url_group_%s' % (i+1)] = match_group
-
-            # make sure a step is marked as the one that actually updates the password
-            for step in rule.steps:
-                if type(step[-1])==dict and step[-1].get('updates_password'):
-                    break
-            else:
-                # by default, we assume it's the second to last step
-                update_step = rule.steps[-2]
-                if type(update_step[-1])!=dict:
-                    update_step.append({})
-                update_step[-1]['updates_password']=True
-
-            try:
-                self.run_steps(login, driver, rule.steps, replacements)
-            except BrowserException as e:
-                login['update_error'] = e.message
-                secure_log.replace_last_entry(login)
-                continue
-            finally:
-                stop_screenshots.set()
-                screenshot_thread.join()
-
-            # success
-            login['update_success'] = True
-            secure_log.replace_last_entry(login)
-            changed_entries.append(login)
+            success = rule.execute(self, login)
+            secure_log.replace_last_entry(login)  # save success or error
+            if success:
+                changed_entries.append(login)
 
         # use CallAfter to send message from this thread back to the main thread
         wx.CallAfter(pub.sendMessage, 'update_complete')
-
-    def run_steps(self, login, driver, steps, replacements):
-        for step in steps:
-            self.run_step(login, driver, step, replacements)
-
-    def run_step(self, login, driver, step, replacements):
-        print "Running", step
-        step_type, args = step[0], step[1:]
-
-        # get opts from end of arguments list
-        if type(args[-1])==dict:
-            args, opts = args[:-1], args[-1]
-        else:
-            opts = {}
-
-        # replacements
-        if step_type in ('type', 'ask', 'open'):
-            for from_str, to_str in replacements.items():
-                args[-1] = args[-1].replace("{{ %s }}" % from_str, to_str)
-
-        if step_type == 'if':
-            substeps = []
-            remaining_parts = step
-            while remaining_parts:
-                if remaining_parts[0] == 'if' or remaining_parts[0] == 'elif':
-                    test_step, success_steps, remaining_parts = remaining_parts[1], remaining_parts[2], remaining_parts[3:]
-                    try:
-                        self.run_step(login, driver, test_step, replacements)
-                        substeps = success_steps
-                        break
-                    except BrowserException:
-                        # condition failed
-                        pass
-                elif remaining_parts[0] == 'else':
-                    substeps = remaining_parts[1]
-                    break
-            self.run_steps(login, driver, substeps, replacements)
-
-        elif step_type == 'ask':
-            key, prompt = args
-            replacements[key] = ask(None, prompt)
-
-        else:
-            result = browser_run_step(driver, step_type, args, timeout=opts.get('timeout'), error_message=opts.get('error_message'))
-
-            if opts.get('updates_password'):
-                login['update_attempted'] = True
-
-            if step_type == 'capture':
-                replacements[args[1]] = result
 
 
 class ResultsPanel(SizerPanel):

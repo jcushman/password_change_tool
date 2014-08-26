@@ -1,6 +1,5 @@
 import json
 import os
-from tempfile import NamedTemporaryFile
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, InvalidElementStateException
 from selenium.webdriver import DesiredCapabilities
@@ -8,7 +7,7 @@ from selenium.webdriver.common.by import By
 import time
 import sys
 from helpers import data_path
-from models import GlobalState
+from global_state import GlobalState
 
 
 TIMEOUT = 30
