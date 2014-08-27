@@ -1,7 +1,7 @@
 import json
 import os
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, InvalidElementStateException
+from selenium.common.exceptions import NoSuchElementException, InvalidElementStateException, ElementNotVisibleException
 from selenium.webdriver import DesiredCapabilities
 from selenium.webdriver.common.by import By
 import time
@@ -75,7 +75,14 @@ def run_step(driver, step, step_args, timeout=None, error_message=None):
 
         elif step == 'click':
             selector = step_args[0]
-            get_element(driver, selector).click()
+            while True:
+                try:
+                    get_element(driver, selector).click()
+                    break
+                except ElementNotVisibleException:
+                    if time.time() > end_time:
+                        raise
+                    time.sleep(.1)
 
         # Not sure if we should actually support this, in terms of limiting the damage a malicious script can do.
         # On the other hand, by the time someone is running a malicious script, they can already steal your new password,
@@ -113,7 +120,7 @@ def run_step(driver, step, step_args, timeout=None, error_message=None):
         else:
             raise BrowserException("Unrecognized command: %s" % step)
 
-    except (UnexpectedElementError, NoSuchElementException, InvalidElementStateException, AssertionError) as e:
+    except (UnexpectedElementError, NoSuchElementException, InvalidElementStateException, AssertionError, BrowserException) as e:
         # debugging
         if GlobalState.options.debug:
             import pdb; pdb.set_trace()
@@ -148,13 +155,19 @@ def get_element(driver, specifier):
         Find an element according to Selenium IDE syntax.
         See http://selenium.googlecode.com/svn/trunk/docs/api/py/selenium/selenium.selenium.html#selenium.selenium.selenium
     """
+    out = None
     if specifier.startswith('//'):
-        return driver.find_element_by_xpath(specifier)
-
-    if '=' in specifier:
+        out = driver.find_elements_by_xpath(specifier)
+    elif '=' in specifier:
         search_type, value = specifier.split('=', 1)
         if search_type in search_types:
-            return driver.find_element(by=search_types[search_type], value=value)
+            out = driver.find_elements(by=search_types[search_type], value=value)
+    if not out:
+        out = driver.find_elements_by_id(specifier)
+    if not out:
+        raise BrowserException("No element matching specifier: %s" % specifier)
+    if len(out)>1:
+        raise BrowserException("Multiple elements returned for specifier: %s" % specifier)
+    return out[0]
 
-    return driver.find_element_by_id(specifier)
 
