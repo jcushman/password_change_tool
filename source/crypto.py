@@ -74,11 +74,16 @@ def load_secure_data():
 def delete_secure_data():
     keyring.delete_password("FreshPass Encrypted Log", "log")
 
+named_ranges = {
+    'a-z': string.lowercase,
+    'A-Z': string.uppercase,
+    '0-9': string.digits,
+}
 def generate_password(length, allowed_chars=None, required_ranges=None):
     if not allowed_chars:
         allowed_chars = string.letters+string.digits
     # generate password
-    password = ''.join(choice(allowed_chars) for _ in range(length))
+    password = [choice(allowed_chars) for _ in range(length)]
 
     # if certain ranges of characters are required (e.g A-Z), make sure they're each in the password
     if required_ranges:
@@ -86,9 +91,11 @@ def generate_password(length, allowed_chars=None, required_ranges=None):
         indexes = sample(range(len(password)), len(required_ranges))
         # put a letter from each required range in the selected location
         for index, required_range in zip(indexes, required_ranges):
+            if required_range in named_ranges:
+                required_range = named_ranges[required_range]
             password[index] = choice(required_range)
 
-    return password
+    return ''.join(password)
 
 def set_access_control_for_import_folder(path):
     """
