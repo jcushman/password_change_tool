@@ -10,16 +10,16 @@ steps:
 
   # We have to get through two optional screens here:
   # a two-factor-auth screen, and then a reminder interstitial to set a backup number.
-  - tryAll:
-    - try: [assertElementPresent, "id=OldPasswd"]
-    - try: [assertElementPresent, "id=smsUserPin"]
+  - race:
+    - assert: [assertElementPresent, "id=OldPasswd"]
+    - assert: [assertElementPresent, "id=smsUserPin"]
       then:
         - [ask, "user_pin", "Enter number sent by Google"]
         - [type, "id=smsUserPin", "{{ user_pin }}"]
         - [click, "id=smsVerifyPin"]
-        - tryAll:
-          - try: [assertElementPresent, "id=OldPasswd"]
-          - try: [click, "id=smsauth-interstitial-remindbutton"]
+        - race:
+          - assert: [assertElementPresent, "id=OldPasswd"]
+          - assert: [click, "id=smsauth-interstitial-remindbutton"]
 
   # login
   - [type, "id=OldPasswd", "{{ old_password }}"]

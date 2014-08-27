@@ -1,7 +1,7 @@
 name: Zillow
 matches:
   - www.zillow.com
-password_rules:
+rules:
   max_length: 20
   min_length: 6
 steps:
@@ -11,11 +11,11 @@ steps:
   - [type, id=password, "{{ old_password }}"]
   - [click, id=loginSubmit]
 
-  - tryAll:
+  - race:
     # check for wrong password
-    - try: [assertNotFound, "//h4[@class='zss-error-header']", {error_message: "Login failed."}]
+    - assert: [assertNotFound, "//h4[@class='zss-error-header']", {error_message: "Login failed."}]
     # navigate to edit password page
-    - try: [click, "link=Edit password", {error_message: "Login failed."}]
+    - assert: [click, "link=Edit password", {error_message: "Login failed."}]
 
   # submit new password
   - [type, id=oldPasswordField, "{{ old_password }}"]

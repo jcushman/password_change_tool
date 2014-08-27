@@ -1,0 +1,23 @@
+name: Dropbox
+matches: []
+# TODO: This fails on the navigate to form step because of some weird javascript timing
+#  - www.dropbox.com
+steps:
+  # log in
+  - [open, "https://www.dropbox.com/account"]
+  - [type, "css=.login-form input[name='login_email']", "{{ username }}"]
+  - [type, "css=.login-form input[name='login_password']", "{{ old_password }}"]
+  - [click, "css=.login-form .login-button"]
+
+  # navigate to form
+  - [assertElementPresent, "css=.settings-title"]
+  - [click, "//div[@data-hash='security']"]
+  - [click, "css=.show-change-password"]
+
+  # submit form
+  - [type, "name=oldpass", "{{ old_password }}"]
+  - [type, "name=newpass", "{{ new_password }}"]
+  - [click, "css=#change-password-form .button-primary"]
+
+  - [assertText, "id=notify-msg", "Password changed successfully."]
+

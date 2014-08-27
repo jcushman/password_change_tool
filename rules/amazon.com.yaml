@@ -8,12 +8,12 @@ steps:
 
   # Amazon at the moment is randomly using two different login screens --
   # presumably one of them will be segued out soon.
-  - tryAll:
-    - try: [type, id=auth-email, "{{ username }}"]
+  - race:
+    - assert: [type, id=auth-email, "{{ username }}"]
       then:
       - [type, id=auth-password, "{{ old_password }}"]
       - [click, "css=.a-button-primary .a-button-input"]
-    - try: [type, id=ap_email, "{{ username }}"]
+    - assert: [type, id=ap_email, "{{ username }}"]
       then:
       - [type, id=ap_password, "{{ old_password }}"]
       - [click, id=signInSubmit-input]

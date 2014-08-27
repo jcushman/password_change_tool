@@ -26,11 +26,11 @@ class FileHandler(object):
 
 
 class Rule(object):
-    def __init__(self, file_name=None, name=None, matches=None, password_rules=None, steps=None, javascript_enabled=True):
+    def __init__(self, file_name=None, name=None, matches=None, rules=None, steps=None, javascript_enabled=True):
         self.file_name = file_name
         self.name = name
         self.targets = matches or []
-        self.password_rules = password_rules or {}
+        self.password_rules = rules or {}
         self.steps = steps
         self.javascript_enabled = javascript_enabled
 
@@ -163,7 +163,7 @@ class Rule(object):
 
         if type(step)==dict:
             args = step
-            for key in ('if', 'tryAll'):
+            for key in ('if', 'race'):
                 if key in step:
                     step_type = key
                     break
@@ -172,7 +172,7 @@ class Rule(object):
         else:
             step_type, args = step[0], step[1:]
             # get opts from end of arguments list
-            if type(args[-1]) == dict and step_type != 'tryAll':
+            if type(args[-1]) == dict and step_type != 'race':
                 args, opts = args[:-1], args[-1]
             else:
                 opts = {}
@@ -185,15 +185,15 @@ class Rule(object):
         if step_type == 'exit':
             raise BrowserException(opts.get('error_message','Exit.'))
 
-        elif step_type == 'tryAll':
-            # the arguments for tryAll are a series of test_steps, success_steps pairs:
+        elif step_type == 'race':
+            # the arguments for race are a series of test_steps, success_steps pairs:
             # [test_steps_1, success_steps_1, test_steps_2, success_steps_2 ...]
             # We are going to run each set of test_steps *simultaneously* in background threads.
             # The first one to either throw an error or finish we will get back.
             # The rest will be cancelled.
             # If the completed one did not throw an error,we will run its success_steps.
-            parallelSteps = args['tryAll']
-            index, result = get_first_result_from_threads((self.run_step, [login, driver, step['try'], replacements]) for step in parallelSteps)
+            parallelSteps = args['race']
+            index, result = get_first_result_from_threads((self.run_step, [login, driver, step['assert'], replacements]) for step in parallelSteps)
             if isinstance(result, Exception):
                 print traceback.print_exception(type(result), result, None)
                 raise result
@@ -244,7 +244,7 @@ class Rule(object):
 
 class PasswordEndpointRule(Rule):
     def __init__(self, name, announce_url, data):
-        super(PasswordEndpointRule, self).__init__(file_name='password_endpoint', name=name, password_rules=data.get('password_rules'))
+        super(PasswordEndpointRule, self).__init__(file_name='password_endpoint', name=name, rules=data.get('rules'))
         self.announce_url = announce_url
         parsed_url = urlparse(announce_url)
         self.endpoint = '%s://%s%s' % (parsed_url.scheme, parsed_url.netloc, data['endpoint'])
